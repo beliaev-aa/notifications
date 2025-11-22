@@ -13,13 +13,6 @@ const createUser = user => user ? {
     email: user.email || null
 } : null;
 
-/** Формирует URL задачи */
-const buildIssueUrl = (ctx, issue) => {
-    if (ctx.permalink) return ctx.permalink.startsWith('http') ? ctx.permalink : '/' + ctx.permalink;
-    const base = ctx.youTrackBaseUrl || 'http://localhost:8080';
-    return issue.idReadable ? `${base}/issue/${issue.idReadable}` : issue.id ? `${base}/issue/${issue.id}` : null;
-};
-
 /** Извлекает упомянутых пользователей из текста */
 const extractMentions = (ctx, text) => {
     if (!text) return [];
@@ -30,7 +23,11 @@ const extractMentions = (ctx, text) => {
     while ((m = MENTION_REGEX_FULL.exec(text)) !== null) {
         if (!seen.has(m[2])) {
             seen.add(m[2]);
-            users.push({fullName: m[3], login: m[2], email: m[4]});
+            users.push(createUser({
+                fullName: m[3],
+                login: m[2],
+                email: m[4]
+            }));
         }
     }
 
@@ -41,55 +38,174 @@ const extractMentions = (ctx, text) => {
         seen.add(login);
         let user = null;
         try {
-            user = entities.User.findByLogin(ctx, login);
-        } catch {
+            user = entities.User.findByLogin(login);
+        } catch (err) {
+            // Пользователь не найден или произошла ошибка - просто игнорируем
+            user = null;
         }
-        if (user) users.push(createUser(user));
+        // Добавляем пользователя только если он найден в YouTrack
+        if (user) {
+            users.push(createUser(user));
+        }
     }
     return users;
 };
 
-/** Формирует базовый payload */
-const basePayload = (ctx, issue, url) => ({
-    author: createUser(ctx.currentUser),
-    issueUrl: url,
-    projectName: issue.project.shortName
-});
+/** Формирует массив изменений */
+const buildChanges = (ctx, issue) => {
+        const changes = [];
 
-/** Конфигурация событий: условие + генератор payload */
-const EVENTS = [
-    {
-        check: (ctx, issue) => issue.fields.State.isChanged && (!issue.oldValue('State') || issue.oldValue('State').name !== issue.fields.State.name),
-        payload: (ctx, issue, url) => {
-            const oldS = issue.oldValue('State'), newS = issue.fields.State;
-            return {
-                ...basePayload(ctx, issue, url), event: 'status_changed',
-                data: {
-                    oldStatus: oldS ? {name: oldS.name, presentation: oldS.presentation} : null,
-                    newStatus: {name: newS.name, presentation: newS.presentation}
-                }
-            };
+        // Изменение статуса
+        if (issue.fields.isChanged(ctx.State)) {
+            const oldState = issue.oldValue('State');
+            const newState = issue.fields.State;
+
+            const oldName = oldState ? (oldState.name || null) : null;
+            const newName = newState ? (newState.name || null) : null;
+
+            // Добавляем только если значение реально изменилось
+            if (oldName !== newName && oldName !== null) {
+                const oldValueObj = oldState ? {
+                    name: oldState.name || null,
+                    presentation: oldState.presentation || null
+                } : null;
+                const newValueObj = newState ? {
+                    name: newState.name || null,
+                    presentation: newState.presentation || null
+                } : null;
+
+                changes.push({
+                    field: 'State',
+                    oldValue: oldValueObj,
+                    newValue: newValueObj
+                });
+            }
         }
-    },
-    {
-        check: (ctx, issue) => issue.comments.added.isNotEmpty() && issue.comments.added.last()?.text,
-        payload: (ctx, issue, url) => {
-            const c = issue.comments.added.last();
-            const commentUrl = c.url || (url && c.id ? `${url}#comment=${c.id}` : null);
-            return {
-                ...basePayload(ctx, issue, url), event: 'comment_added',
-                data: {timestamp: c.created, text: c.text, mentionedUsers: extractMentions(ctx, c.text), commentUrl}
-            };
+
+        // Изменение приоритета
+        if (issue.fields.isChanged(ctx.Priority)) {
+            const oldPriority = issue.oldValue('Priority');
+            const newPriority = issue.fields.Priority;
+
+            const oldName = oldPriority ? (oldPriority.name || null) : null;
+            const newName = newPriority ? (newPriority.name || null) : null;
+
+            // Добавляем только если значение реально изменилось
+            if (oldName !== newName && oldName !== null) {
+                const oldValueObj = oldPriority ? {
+                    name: oldPriority.name || null,
+                    presentation: oldPriority.presentation || null
+                } : null;
+                const newValueObj = newPriority ? {
+                    name: newPriority.name || null,
+                    presentation: newPriority.presentation || null
+                } : null;
+
+                changes.push({
+                    field: 'Priority',
+                    oldValue: oldValueObj,
+                    newValue: newValueObj
+                });
+            }
         }
-    },
-    {
-        check: (ctx, issue) => issue.fields.Assignee && issue.fields.Assignee.isChanged && (issue.oldValue('Assignee')?.fullName !== issue.fields.Assignee.fullName),
-        payload: (ctx, issue, url) => ({
-            ...basePayload(ctx, issue, url), event: 'assignee_changed',
-            data: {oldAssignee: createUser(issue.oldValue('Assignee')), newAssignee: createUser(issue.fields.Assignee)}
-        })
+
+        // Изменение исполнителя
+        if (issue.fields.isChanged(ctx.Assignee)) {
+            const oldAssignee = issue.oldValue('Assignee');
+            const newAssignee = issue.fields.Assignee;
+
+            const oldValueObj = oldAssignee ? createUser(oldAssignee) : null;
+            const newValueObj = newAssignee ? createUser(newAssignee) : null;
+
+            changes.push({
+                field: 'Assignee',
+                oldValue: oldValueObj,
+                newValue: newValueObj
+            });
+        }
+
+        // Добавление комментария (только если был добавлен новый комментарий)
+        if (issue.comments.added.isNotEmpty()) {
+            const lastComment = issue.comments.added.last();
+            if (lastComment && lastComment.text) {
+                const mentions = extractMentions(ctx, lastComment.text);
+                // Формируем объект комментария с упомянутыми пользователями
+                const commentChange = {
+                    field: 'Comment',
+                    oldValue: null,
+                    newValue: {
+                        text: lastComment.text,
+                        mentionedUsers: mentions.length > 0 ? mentions : null
+                    }
+                };
+                changes.push(commentChange);
+            }
+        }
+
+        return changes;
     }
-];
+;
+
+/** Формирует payload для отправки в webhook */
+const buildPayload = (ctx, issue) => {
+    const changes = buildChanges(ctx, issue);
+
+    // Формируем объект проекта
+    const project = {
+        name: issue.project.name || issue.project.shortName || null,
+        presentation: issue.project.presentation || null
+    };
+
+    // Формируем объект задачи
+    const issueObj = {
+        idReadable: issue.idReadable || '',
+        summary: issue.summary || '',
+        url: issue.url
+    };
+
+    // Статус задачи (может быть null)
+    if (issue.fields.State) {
+        issueObj.state = {
+            name: issue.fields.State.name || null,
+            presentation: issue.fields.State.presentation || null
+        };
+    } else {
+        issueObj.state = {
+            name: null,
+            presentation: null
+        };
+    }
+
+    // Приоритет задачи (может быть null)
+    if (issue.fields.Priority) {
+        issueObj.priority = {
+            name: issue.fields.Priority.name || null,
+            presentation: issue.fields.Priority.presentation || null
+        };
+    } else {
+        issueObj.priority = {
+            name: null,
+            presentation: null
+        };
+    }
+
+    // Исполнитель задачи (может быть null)
+    if (issue.fields.Assignee) {
+        issueObj.assignee = createUser(issue.fields.Assignee);
+    } else {
+        issueObj.assignee = null;
+    }
+
+    // Автор изменения
+    const updater = createUser(ctx.currentUser);
+
+    return {
+        project: project,
+        issue: issueObj,
+        updater: updater,
+        changes: changes
+    };
+};
 
 /** Отправка payload в вебхук */
 const sendWebhook = (payload) => {
@@ -97,7 +213,9 @@ const sendWebhook = (payload) => {
         const conn = new http.Connection(WEBHOOK_URL, null, 2000);
         conn.addHeader('Content-Type', 'application/json');
         const resp = conn.postSync('', null, JSON.stringify(payload));
-        if (!resp.isSuccess) console.warn(`Webhook failed: ${resp.status}, payload: ${JSON.stringify(payload)}`);
+        if (!resp.isSuccess) {
+            console.warn(`Webhook failed: ${resp.status}, payload: ${JSON.stringify(payload)}`);
+        }
     } catch (err) {
         console.error('Ошибка отправки вебхука:', err, JSON.stringify(payload));
     }
@@ -107,13 +225,16 @@ exports.rule = entities.Issue.onChange({
     title: 'Send Task Notifications to Webhook',
     action: ctx => {
         const issue = ctx.issue;
-        const url = buildIssueUrl(ctx, issue);
-        for (const e of EVENTS) {
-            if (e.check(ctx, issue)) {
-                sendWebhook(e.payload(ctx, issue, url));
-                break;
-            }
+        const payload = buildPayload(ctx, issue);
+
+        // Отправляем webhook если есть изменения
+        if (payload.changes && payload.changes.length > 0) {
+            sendWebhook(payload);
         }
     },
-    requirements: {Assignee: {type: entities.User.fieldType}, State: {type: entities.EnumField.fieldType}}
+    requirements: {
+        Assignee: {type: entities.User.fieldType},
+        State: {type: entities.EnumField.fieldType},
+        Priority: {type: entities.EnumField.fieldType}
+    }
 });
