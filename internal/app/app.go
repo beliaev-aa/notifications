@@ -2,7 +2,9 @@ package app
 
 import (
 	"github.com/beliaev-aa/notifications/internal/adapter/http"
-	"github.com/beliaev-aa/notifications/internal/usecase"
+	"github.com/beliaev-aa/notifications/internal/adapter/notification"
+	"github.com/beliaev-aa/notifications/internal/adapter/notification/channel"
+	"github.com/beliaev-aa/notifications/internal/service"
 	"github.com/sirupsen/logrus"
 	"time"
 )
@@ -19,8 +21,14 @@ type App struct {
 }
 
 // NewApp создает новый экземпляр приложения с инициализированными зависимостями
-func NewApp(cfg *Config, log *logrus.Logger) *App {
-	webhookUseCase := usecase.NewWebhookUseCase(log)
+func NewApp(cfg *Config, logger *logrus.Logger) *App {
+	// Создаем отправитель уведомлений
+	notificationSender := notification.NewSender(logger)
+
+	// Регистрируем каналы отправки уведомлений
+	notificationSender.RegisterChannel(channel.NewLoggerChannel(logger))
+
+	webhookService := service.NewWebhookService(notificationSender, logger)
 
 	// Создаем HTTP конфигурацию адаптера
 	httpCfg := &http.Config{
@@ -29,7 +37,7 @@ func NewApp(cfg *Config, log *logrus.Logger) *App {
 	}
 
 	// Создаем HTTP адаптер с зависимостью
-	httpServer := http.NewServer(httpCfg, webhookUseCase, log)
+	httpServer := http.NewServer(httpCfg, webhookService, logger)
 
 	return &App{
 		httpServer: httpServer,

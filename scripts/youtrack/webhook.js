@@ -152,8 +152,8 @@ const buildPayload = (ctx, issue) => {
 
     // Формируем объект проекта
     const project = {
-        name: issue.project.name || issue.project.shortName || null,
-        presentation: issue.project.presentation || null
+        name: issue.project.key || null,
+        presentation: issue.project.name || null
     };
 
     // Формируем объект задачи
