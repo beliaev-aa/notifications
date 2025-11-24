@@ -3,6 +3,8 @@ package port
 const (
 	// ChannelLogger название канала логирования
 	ChannelLogger = "logger"
+	// ChannelTelegram название канала Telegram
+	ChannelTelegram = "telegram"
 )
 
 // NotificationChannel определяет порт для отправки уведомлений через конкретный канал

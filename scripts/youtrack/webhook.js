@@ -1,7 +1,7 @@
 const entities = require('@jetbrains/youtrack-scripting-api/entities');
 const http = require('@jetbrains/youtrack-scripting-api/http');
 
-const WEBHOOK_URL = 'http://host.docker.internal:3000/log-post-request';
+const WEBHOOK_URL = 'http://host.docker.internal:3000/webhook/youtrack';
 
 const MENTION_REGEX_FULL = /@\{([^,]+),([^,]+),([^,]+),([^}]+)\}/g;
 const MENTION_REGEX_SIMPLE = /@([a-zA-Z0-9._-]+)/g;

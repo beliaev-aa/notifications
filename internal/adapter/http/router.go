@@ -7,13 +7,13 @@ import (
 )
 
 // NewRouter создает новый HTTP роутер с зарегистрированными маршрутами
-func NewRouter(webhookService port.WebhookService, log *logrus.Logger) *chi.Mux {
+func NewRouter(webhookService port.WebhookService, logger *logrus.Logger) *chi.Mux {
 	r := chi.NewRouter()
 
-	h := NewHandler(webhookService, log)
+	h := NewHandler(webhookService, logger)
 
 	r.Get("/health", h.Health)
-	r.Post("/log-post-request", h.LogPostRequest)
+	r.Post("/webhook/youtrack", h.LogPostRequest)
 
 	return r
 }

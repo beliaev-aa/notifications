@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/beliaev-aa/notifications/internal/adapter/formatter"
 	"github.com/beliaev-aa/notifications/internal/adapter/youtrack"
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/domain/port/parser"
@@ -55,13 +56,18 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 		w.logger.WithError(parseErr).Error("Failed to parse YouTrack data")
 		return parseErr
 	}
+	w.logger.WithFields(logrus.Fields{
+		"payload": payload,
+	}).Debug("Parsed payload")
+	youtrackFormatter := w.youtrackParser.NewFormatter()
 
-	formatter := w.youtrackParser.NewFormatter()
+	// Регистрируем специальное форматирование для Telegram канала
+	youtrackFormatter.RegisterChannelFormatter(port.ChannelTelegram, formatter.FormatTelegram)
 
 	// Отправляем уведомление через все выбранные каналы
 	for _, channel := range channels {
 		// Форматируем уведомление для конкретного канала
-		formattedMessage := formatter.Format(payload, channel)
+		formattedMessage := youtrackFormatter.Format(payload, channel)
 
 		if err = w.notificationSender.Send(channel, formattedMessage); err != nil {
 			w.logger.WithError(err).WithFields(logrus.Fields{
@@ -76,5 +82,5 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 
 // determineNotificationChannels определяет каналы для отправки уведомления. Возвращает список каналов, в которые нужно отправить уведомление
 func (w *WebhookService) determineNotificationChannels() []string {
-	return []string{port.ChannelLogger}
+	return []string{port.ChannelLogger, port.ChannelTelegram}
 }
