@@ -9,6 +9,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// filepathAbsFunc используется для тестирования - позволяет подменить filepath.Abs
+var filepathAbsFunc = filepath.Abs
+
 const (
 	// DefaultConfigPath путь к конфигурации по умолчанию
 	DefaultConfigPath = "./config/config.yml"
@@ -79,7 +82,7 @@ func LoadConfig() (*Config, error) {
 // loadFromYAML загружает конфигурацию из YAML файла
 func loadFromYAML(cfg *Config, path string) error {
 	// Преобразуем относительный путь в абсолютный
-	absPath, err := filepath.Abs(path)
+	absPath, err := filepathAbsFunc(path)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
