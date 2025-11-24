@@ -5,13 +5,14 @@ import (
 	"github.com/beliaev-aa/notifications/internal/adapter/notification"
 	"github.com/beliaev-aa/notifications/internal/adapter/notification/channel"
 	"github.com/beliaev-aa/notifications/internal/config"
+	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/service"
 	"github.com/sirupsen/logrus"
 )
 
 // App представляет основное приложение с композицией всех зависимостей
 type App struct {
-	httpServer *http.Server
+	httpServer port.HTTPServer
 }
 
 // NewApp создает новый экземпляр приложения с инициализированными зависимостями
