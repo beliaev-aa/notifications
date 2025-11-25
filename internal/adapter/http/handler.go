@@ -30,8 +30,8 @@ func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// LogPostRequest обрабатывает POST запросы для логирования webhook данных
-func (h *Handler) LogPostRequest(w http.ResponseWriter, r *http.Request) {
+// YoutrackWebhook обрабатывает POST запросы из webhook YouTrack
+func (h *Handler) YoutrackWebhook(w http.ResponseWriter, r *http.Request) {
 	// Делегируем обработку бизнес-логики
 	if err := h.webhookService.ProcessWebhook(r); err != nil {
 		h.logger.WithError(err).Error("Failed to process webhook")

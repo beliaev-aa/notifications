@@ -13,7 +13,7 @@ func NewRouter(webhookService port.WebhookService, logger *logrus.Logger) *chi.M
 	h := NewHandler(webhookService, logger)
 
 	r.Get("/health", h.Health)
-	r.Post("/webhook/youtrack", h.LogPostRequest)
+	r.Post("/webhook/youtrack", h.YoutrackWebhook)
 
 	return r
 }
