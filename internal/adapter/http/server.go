@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/beliaev-aa/notifications/internal/config"
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/sirupsen/logrus"
@@ -40,6 +41,8 @@ func (s *Server) Start() error {
 		WriteTimeout: time.Duration(s.cfg.WriteTimeout) * time.Second,
 	}
 
+	serverErrors := make(chan error, 1)
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
@@ -48,19 +51,29 @@ func (s *Server) Start() error {
 			"addr": srv.Addr,
 		}).Info("Starting web-server")
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.WithError(err).Fatal("Error starting web server")
+			s.logger.WithError(err).Error("Error starting web server")
+			serverErrors <- err
 		}
 	}()
 
-	<-quit
-
-	s.logger.Info("Shutting down http-server...")
+	select {
+	case err := <-serverErrors:
+		return fmt.Errorf("failed to start server: %w", err)
+	case sig := <-quit:
+		s.logger.WithFields(logrus.Fields{
+			"signal": sig.String(),
+		}).Info("Shutting down http-server...")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.ShutdownTimeout)*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		s.logger.WithError(err).Error("Graceful shutdown failed")
+		if errors.Is(err, context.DeadlineExceeded) {
+			s.logger.WithError(err).Warn("Graceful shutdown timeout exceeded, forcing shutdown")
+		} else {
+			s.logger.WithError(err).Error("Graceful shutdown failed")
+		}
 		return err
 	}
 
