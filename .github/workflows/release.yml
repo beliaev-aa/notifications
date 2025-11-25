@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   test:
     name: Run tests
@@ -116,10 +120,17 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare release files
+        run: |
+          find artifacts -name "*.tar.gz" -exec mv {} . \;
+          find artifacts -name "*.sha256" -exec mv {} . \;
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*
+          files: |
+            notifications-*.tar.gz
+            notifications-*.tar.gz.sha256
           draft: false
           prerelease: false
         env:
