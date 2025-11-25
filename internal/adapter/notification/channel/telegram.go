@@ -24,12 +24,12 @@ type TelegramChannel struct {
 	botToken string
 	chatID   string
 	timeout  time.Duration
-	client   *http.Client
+	client   port.HTTPClient
 	logger   *logrus.Logger
 }
 
 // NewTelegramChannel создает новый канал Telegram
-func NewTelegramChannel(cfg config.TelegramConfig, logger *logrus.Logger) port.NotificationChannel {
+func NewTelegramChannel(cfg config.TelegramConfig, logger *logrus.Logger, httpClient port.HTTPClient) port.NotificationChannel {
 	if cfg.BotToken == "" {
 		logger.Warn("Telegram bot token is empty, Telegram channel will not work")
 	}
@@ -37,17 +37,13 @@ func NewTelegramChannel(cfg config.TelegramConfig, logger *logrus.Logger) port.N
 		logger.Warn("Telegram chat ID is empty, Telegram channel will not work")
 	}
 
-	// Создаем HTTP клиент с таймаутом
 	timeout := time.Duration(cfg.Timeout) * time.Second
-	client := &http.Client{
-		Timeout: timeout,
-	}
 
 	return &TelegramChannel{
 		botToken: cfg.BotToken,
 		chatID:   cfg.ChatID,
 		timeout:  timeout,
-		client:   client,
+		client:   httpClient,
 		logger:   logger,
 	}
 }

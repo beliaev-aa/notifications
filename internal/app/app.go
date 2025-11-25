@@ -8,6 +8,8 @@ import (
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/service"
 	"github.com/sirupsen/logrus"
+	nethttp "net/http"
+	"time"
 )
 
 // App представляет основное приложение с композицией всех зависимостей
@@ -25,7 +27,10 @@ func NewApp(cfg *config.Config, logger *logrus.Logger) *App {
 
 	// Регистрируем Telegram канал, если он включен
 	if cfg.Telegram.Enabled {
-		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger))
+		httpClient := &nethttp.Client{
+			Timeout: time.Duration(cfg.Telegram.Timeout) * time.Second,
+		}
+		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger, httpClient))
 	}
 
 	webhookService := service.NewWebhookService(notificationSender, logger)
