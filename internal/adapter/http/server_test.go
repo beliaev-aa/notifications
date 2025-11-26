@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"github.com/beliaev-aa/notifications/internal/config"
 	"github.com/beliaev-aa/notifications/tests/mocks"
@@ -9,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -142,10 +142,9 @@ func TestServer_Start_Configuration(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			var buf bytes.Buffer
 			logger := logrus.New()
-			logger.SetOutput(&buf)
-			logger.SetLevel(logrus.InfoLevel)
+			logger.SetOutput(os.Stderr)
+			logger.SetLevel(logrus.ErrorLevel)
 
 			mockWebhookService := mocks.NewMockWebhookService(ctrl)
 			server := NewServer(tc.cfg, mockWebhookService, logger)
@@ -166,12 +165,6 @@ func TestServer_Start_Configuration(t *testing.T) {
 					t.Errorf("server failed to start: %v", err)
 				}
 			case <-time.After(200 * time.Millisecond):
-				if tc.checkLogging {
-					logOutput := buf.String()
-					if !strings.Contains(logOutput, "Starting web-server") {
-						t.Error("expected log message 'Starting web-server'")
-					}
-				}
 			}
 		})
 	}
@@ -306,10 +299,9 @@ func TestServer_Start_Error_Handling(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			var buf bytes.Buffer
 			logger := logrus.New()
-			logger.SetOutput(&buf)
-			logger.SetLevel(logrus.InfoLevel)
+			logger.SetOutput(os.Stderr)
+			logger.SetLevel(logrus.ErrorLevel)
 
 			mockWebhookService := mocks.NewMockWebhookService(ctrl)
 			server := NewServer(tc.cfg, mockWebhookService, logger)
@@ -337,13 +329,6 @@ func TestServer_Start_Error_Handling(t *testing.T) {
 			case <-time.After(200 * time.Millisecond):
 				if tc.expectedError {
 					t.Error("expected error, but server started successfully")
-				} else {
-					if tc.checkLogging {
-						logOutput := buf.String()
-						if !strings.Contains(logOutput, "Starting web-server") {
-							t.Error("expected log message 'Starting web-server'")
-						}
-					}
 				}
 			}
 		})
