@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/beliaev-aa/notifications/badge.svg?branch=master)](https://coveralls.io/github/beliaev-aa/notifications?branch=master)
+
 # notifications
 
 Notification web service для обработки webhook запросов от YouTrack и отправки уведомлений через различные каналы (Telegram, Logger).
