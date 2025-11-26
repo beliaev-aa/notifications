@@ -51,6 +51,12 @@ type YoutrackParser interface {
 	ParseJSON(payload []byte) (*YoutrackWebhookPayload, error)
 	// NewFormatter создает форматтер для данного типа payload
 	NewFormatter() YoutrackFormatter
+	// GetAllowedChannels возвращает разрешенные каналы для проекта из payload
+	// Если проект не разрешен или имя проекта пустое, возвращает пустой слайс
+	GetAllowedChannels(payload *YoutrackWebhookPayload) []string
+	// GetTelegramChatID возвращает chat_id для Telegram канала проекта
+	// Возвращает chat_id и true, если проект разрешен и имеет Telegram конфигурацию, иначе пустую строку и false
+	GetTelegramChatID(projectName string) (string, bool)
 }
 
 // YoutrackFormatter определяет порт для форматирования YouTrack payload для различных каналов

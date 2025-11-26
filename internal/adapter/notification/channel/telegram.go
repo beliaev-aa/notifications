@@ -22,7 +22,6 @@ const (
 // TelegramChannel реализует канал отправки уведомлений через Telegram
 type TelegramChannel struct {
 	botToken string
-	chatID   string
 	timeout  time.Duration
 	client   port.HTTPClient
 	logger   *logrus.Logger
@@ -33,15 +32,11 @@ func NewTelegramChannel(cfg config.TelegramConfig, logger *logrus.Logger, httpCl
 	if cfg.BotToken == "" {
 		logger.Warn("Telegram bot token is empty, Telegram channel will not work")
 	}
-	if cfg.ChatID == "" {
-		logger.Warn("Telegram chat ID is empty, Telegram channel will not work")
-	}
 
 	timeout := time.Duration(cfg.Timeout) * time.Second
 
 	return &TelegramChannel{
 		botToken: cfg.BotToken,
-		chatID:   cfg.ChatID,
 		timeout:  timeout,
 		client:   httpClient,
 		logger:   logger,
@@ -49,11 +44,11 @@ func NewTelegramChannel(cfg config.TelegramConfig, logger *logrus.Logger, httpCl
 }
 
 // Send отправляет уведомление в Telegram
-func (c *TelegramChannel) Send(formattedMessage string) error {
+func (c *TelegramChannel) Send(chatID string, formattedMessage string) error {
 	if c.botToken == "" {
 		return fmt.Errorf("telegram bot token is not configured")
 	}
-	if c.chatID == "" {
+	if chatID == "" {
 		return fmt.Errorf("telegram chat ID is not configured")
 	}
 
@@ -62,7 +57,7 @@ func (c *TelegramChannel) Send(formattedMessage string) error {
 
 	// Подготавливаем данные для отправки
 	payload := map[string]interface{}{
-		"chat_id":    c.chatID,
+		"chat_id":    chatID,
 		"text":       formattedMessage,
 		"parse_mode": parseMode,
 	}
@@ -108,7 +103,7 @@ func (c *TelegramChannel) Send(formattedMessage string) error {
 	}
 
 	c.logger.WithFields(logrus.Fields{
-		"chat_id": c.chatID,
+		"chat_id": chatID,
 		"status":  resp.StatusCode,
 	}).Info("Notification sent via Telegram channel")
 

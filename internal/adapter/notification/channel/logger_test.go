@@ -119,7 +119,7 @@ func TestLoggerChannel_Send(t *testing.T) {
 
 			channel := NewLoggerChannel(logger).(*LoggerChannel)
 
-			err := channel.Send(tc.message)
+			err := channel.Send("", tc.message)
 
 			if tc.expectedError {
 				if err == nil {
@@ -237,7 +237,7 @@ func TestLoggerChannel_Integration(t *testing.T) {
 				t.Errorf("expected channel name %q, got: %q", port.ChannelLogger, channel.Channel())
 			}
 
-			err := channel.Send(tc.message)
+			err := channel.Send("", tc.message)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -303,7 +303,7 @@ func TestLoggerChannel_EdgeCases(t *testing.T) {
 
 			channel := NewLoggerChannel(logger).(*LoggerChannel)
 
-			err := channel.Send(tc.message)
+			err := channel.Send("", tc.message)
 
 			if tc.expectedError {
 				if err == nil {

@@ -50,7 +50,6 @@ func TestNewTelegramChannel(t *testing.T) {
 			name: "Create_TelegramChannel_Success",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
 			logger:         logrus.New(),
@@ -61,7 +60,6 @@ func TestNewTelegramChannel(t *testing.T) {
 			name: "Create_TelegramChannel_With_Empty_Token",
 			cfg: config.TelegramConfig{
 				BotToken: "",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
 			logger:         logrus.New(),
@@ -69,10 +67,9 @@ func TestNewTelegramChannel(t *testing.T) {
 			checkNil:       false,
 		},
 		{
-			name: "Create_TelegramChannel_With_Empty_ChatID",
+			name: "Create_TelegramChannel_With_Valid_Config",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "",
 				Timeout:  10,
 			},
 			logger:         logrus.New(),
@@ -83,7 +80,6 @@ func TestNewTelegramChannel(t *testing.T) {
 			name: "Create_TelegramChannel_With_Nil_Logger",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
 			logger:         nil,
@@ -124,6 +120,7 @@ func TestTelegramChannel_Send(t *testing.T) {
 	type testCase struct {
 		name             string
 		cfg              config.TelegramConfig
+		chatID           string
 		message          string
 		httpResponse     *http.Response
 		httpError        error
@@ -147,9 +144,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_Success",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Test message",
 			httpResponse:  successResponse,
 			httpError:     nil,
@@ -160,9 +157,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Empty_BotToken",
 			cfg: config.TelegramConfig{
 				BotToken: "",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:           "test_chat_id",
 			message:          "Test message",
 			httpResponse:     nil,
 			httpError:        nil,
@@ -173,9 +170,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Empty_ChatID",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "",
 				Timeout:  10,
 			},
+			chatID:           "",
 			message:          "Test message",
 			httpResponse:     nil,
 			httpError:        nil,
@@ -186,9 +183,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_HTTP_Client_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:           "test_chat_id",
 			message:          "Test message",
 			httpResponse:     nil,
 			httpError:        errors.New("network error"),
@@ -199,9 +196,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_HTTP_Error_Response",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:           "test_chat_id",
 			message:          "Test message",
 			httpResponse:     errorResponse,
 			httpError:        nil,
@@ -212,9 +209,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Special_Characters",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Message with special chars: !@#$%^&*()",
 			httpResponse:  successResponse,
 			httpError:     nil,
@@ -224,9 +221,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Unicode",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Сообщение с кириллицей 🚀",
 			httpResponse:  successResponse,
 			httpError:     nil,
@@ -236,9 +233,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Newlines",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Line 1\nLine 2\nLine 3",
 			httpResponse:  successResponse,
 			httpError:     nil,
@@ -248,9 +245,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_Empty_Response_Body",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusOK,
@@ -263,9 +260,9 @@ func TestTelegramChannel_Send(t *testing.T) {
 			name: "Send_With_500_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusInternalServerError,
@@ -288,7 +285,7 @@ func TestTelegramChannel_Send(t *testing.T) {
 
 			channel := NewTelegramChannel(tc.cfg, logger, mockHTTPClient).(*TelegramChannel)
 
-			if tc.cfg.BotToken != "" && tc.cfg.ChatID != "" {
+			if tc.cfg.BotToken != "" {
 				if tc.httpError != nil {
 					mockHTTPClient.EXPECT().Do(gomock.Any()).Return(nil, tc.httpError)
 				} else if tc.httpResponse != nil {
@@ -296,7 +293,10 @@ func TestTelegramChannel_Send(t *testing.T) {
 					if tc.httpResponse.Body != nil {
 						bodyBytes, _ := io.ReadAll(tc.httpResponse.Body)
 						bodyContent = string(bodyBytes)
-						tc.httpResponse.Body.Close()
+						err := tc.httpResponse.Body.Close()
+						if err != nil {
+							return
+						}
 					}
 
 					mockHTTPClient.EXPECT().Do(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
@@ -315,8 +315,8 @@ func TestTelegramChannel_Send(t *testing.T) {
 						body, _ := io.ReadAll(req.Body)
 						var payload map[string]interface{}
 						if err := json.Unmarshal(body, &payload); err == nil {
-							if payload["chat_id"] != tc.cfg.ChatID {
-								t.Errorf("expected chat_id %q, got: %v", tc.cfg.ChatID, payload["chat_id"])
+							if payload["chat_id"] != tc.chatID {
+								t.Errorf("expected chat_id %q, got: %v", tc.chatID, payload["chat_id"])
 							}
 							if payload["text"] != tc.message {
 								t.Errorf("expected text %q, got: %v", tc.message, payload["text"])
@@ -335,7 +335,7 @@ func TestTelegramChannel_Send(t *testing.T) {
 				}
 			}
 
-			err := channel.Send(tc.message)
+			err := channel.Send(tc.chatID, tc.message)
 
 			if tc.expectedError {
 				if err == nil {
@@ -364,7 +364,6 @@ func TestTelegramChannel_Channel(t *testing.T) {
 			name: "Channel_Returns_Telegram",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
 			expectedResult: port.ChannelTelegram,
@@ -392,6 +391,7 @@ func TestTelegramChannel_Integration(t *testing.T) {
 	type testCase struct {
 		name    string
 		cfg     config.TelegramConfig
+		chatID  string
 		message string
 	}
 
@@ -400,9 +400,9 @@ func TestTelegramChannel_Integration(t *testing.T) {
 			name: "Full_Integration_Test",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Integration test message",
 		},
 	}
@@ -431,7 +431,7 @@ func TestTelegramChannel_Integration(t *testing.T) {
 				Body:       io.NopCloser(strings.NewReader(`{"ok": true}`)),
 			}, nil)
 
-			err := channel.Send(tc.message)
+			err := channel.Send(tc.chatID, tc.message)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -443,6 +443,7 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 	type testCase struct {
 		name          string
 		cfg           config.TelegramConfig
+		chatID        string
 		message       string
 		httpResponse  *http.Response
 		httpError     error
@@ -454,9 +455,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_Very_Long_Message",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: strings.Repeat("A", 10000),
 			httpResponse: &http.Response{
 				StatusCode: http.StatusOK,
@@ -469,9 +470,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_JSON_In_Message",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: `{"key": "value", "number": 123}`,
 			httpResponse: &http.Response{
 				StatusCode: http.StatusOK,
@@ -484,9 +485,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_Timeout_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Test message",
 			httpResponse:  nil,
 			httpError:     errors.New("context deadline exceeded"),
@@ -496,9 +497,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_Connection_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:        "test_chat_id",
 			message:       "Test message",
 			httpResponse:  nil,
 			httpError:     errors.New("connection refused"),
@@ -508,9 +509,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_403_Forbidden",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusForbidden,
@@ -523,9 +524,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_404_Not_Found",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusNotFound,
@@ -538,9 +539,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_Read_Body_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusOK,
@@ -553,9 +554,9 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 			name: "Send_With_Close_Body_Error",
 			cfg: config.TelegramConfig{
 				BotToken: "test_token",
-				ChatID:   "test_chat_id",
 				Timeout:  10,
 			},
+			chatID:  "test_chat_id",
 			message: "Test message",
 			httpResponse: &http.Response{
 				StatusCode: http.StatusOK,
@@ -584,7 +585,10 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 				if tc.httpResponse.Body != nil {
 					bodyBytes, _ := io.ReadAll(tc.httpResponse.Body)
 					bodyContent = string(bodyBytes)
-					tc.httpResponse.Body.Close()
+					err := tc.httpResponse.Body.Close()
+					if err != nil {
+						return
+					}
 				}
 
 				mockHTTPClient.EXPECT().Do(gomock.Any()).Return(&http.Response{
@@ -593,7 +597,7 @@ func TestTelegramChannel_EdgeCases(t *testing.T) {
 				}, nil)
 			}
 
-			err := channel.Send(tc.message)
+			err := channel.Send(tc.chatID, tc.message)
 
 			if tc.expectedError {
 				if err == nil {

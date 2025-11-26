@@ -18,7 +18,7 @@ func NewLoggerChannel(logger *logrus.Logger) port.NotificationChannel {
 }
 
 // Send отправляет уведомление в логи
-func (c *LoggerChannel) Send(formattedMessage string) error {
+func (c *LoggerChannel) Send(_ string, formattedMessage string) error {
 	c.logger.WithFields(logrus.Fields{
 		"message": formattedMessage,
 	}).Info("Notification sent via logger channel")

@@ -27,9 +27,7 @@ func TestLoadConfig(t *testing.T) {
 				"HTTP_SHUTDOWN_TIMEOUT": "10",
 				"HTTP_READ_TIMEOUT":     "15",
 				"HTTP_WRITE_TIMEOUT":    "20",
-				"TELEGRAM_ENABLED":      "true",
 				"TELEGRAM_BOT_TOKEN":    "env_token",
-				"TELEGRAM_CHAT_ID":      "env_chat_id",
 				"TELEGRAM_TIMEOUT":      "30",
 				"LOG_LEVEL":             "info",
 			},
@@ -40,9 +38,7 @@ http:
   read_timeout: 5
   write_timeout: 5
 telegram:
-  enabled: false
   bot_token: "yaml_token"
-  chat_id: "yaml_chat_id"
   timeout: 10
 logger:
   level: "debug"
@@ -55,13 +51,16 @@ logger:
 					WriteTimeout:    20,
 				},
 				Telegram: TelegramConfig{
-					Enabled:  true,
 					BotToken: "env_token",
-					ChatID:   "env_chat_id",
 					Timeout:  30,
 				},
 				Logger: LoggerConfig{
 					Level: "info",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
 				},
 			},
 		},
@@ -75,9 +74,7 @@ http:
   read_timeout: 5
   write_timeout: 5
 telegram:
-  enabled: false
   bot_token: ""
-  chat_id: ""
   timeout: 10
 logger:
   level: "debug"
@@ -90,13 +87,16 @@ logger:
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled:  false,
 					BotToken: "",
-					ChatID:   "",
 					Timeout:  10,
 				},
 				Logger: LoggerConfig{
 					Level: "debug",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
 				},
 			},
 		},
@@ -115,6 +115,14 @@ logger:
 					ReadTimeout:     5,
 					WriteTimeout:    5,
 				},
+				Telegram: TelegramConfig{
+					Timeout: 10,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
 			},
 		},
 		{
@@ -124,7 +132,6 @@ logger:
 				"HTTP_SHUTDOWN_TIMEOUT": "5",
 				"HTTP_READ_TIMEOUT":     "5",
 				"HTTP_WRITE_TIMEOUT":    "5",
-				"TELEGRAM_ENABLED":      "false",
 				"LOG_LEVEL":             "warn",
 			},
 			expectedConfig: &Config{
@@ -135,10 +142,71 @@ logger:
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled: false,
+					Timeout: 10,
 				},
 				Logger: LoggerConfig{
 					Level: "warn",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
+			},
+		},
+		{
+			name: "Config_With_Notifications_Projects",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"TELEGRAM_BOT_TOKEN":    "token123",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+telegram:
+  bot_token: "token123"
+  timeout: 10
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [telegram, logger]
+        telegram:
+          chat_id: "123456789"
+      project2:
+        allowedChannels: [logger]
+`,
+			expectedConfig: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					BotToken: "token123",
+					Timeout:  10,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"telegram", "logger"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "123456789",
+								},
+							},
+							"project2": {
+								AllowedChannels: []string{"logger"},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -164,30 +232,129 @@ logger:
 			expectedErr:    errors.New("HTTP_SHUTDOWN_TIMEOUT must be positive"),
 		},
 		{
-			name: "Config_Validation_Error_If_Telegram_Enabled_But_Token_Missing",
+			name: "Config_Validation_Error_If_Project_Has_Telegram_But_No_ChatID",
 			envVariables: map[string]string{
 				"HTTP_ADDR":             ":8080",
 				"HTTP_SHUTDOWN_TIMEOUT": "5",
 				"HTTP_READ_TIMEOUT":     "5",
 				"HTTP_WRITE_TIMEOUT":    "5",
-				"TELEGRAM_ENABLED":      "true",
-				"TELEGRAM_CHAT_ID":      "chat123",
-			},
-			expectedConfig: nil,
-			expectedErr:    errors.New("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true"),
-		},
-		{
-			name: "Config_Validation_Error_If_Telegram_Enabled_But_ChatID_Missing",
-			envVariables: map[string]string{
-				"HTTP_ADDR":             ":8080",
-				"HTTP_SHUTDOWN_TIMEOUT": "5",
-				"HTTP_READ_TIMEOUT":     "5",
-				"HTTP_WRITE_TIMEOUT":    "5",
-				"TELEGRAM_ENABLED":      "true",
 				"TELEGRAM_BOT_TOKEN":    "token123",
 			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+telegram:
+  bot_token: "token123"
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [telegram]
+`,
 			expectedConfig: nil,
-			expectedErr:    errors.New("TELEGRAM_CHAT_ID is required when TELEGRAM_ENABLED=true"),
+			expectedErr:    errors.New("telegram.chat_id is required"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_Telegram_But_Empty_ChatID",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"TELEGRAM_BOT_TOKEN":    "token123",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+telegram:
+  bot_token: "token123"
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [telegram]
+        telegram:
+          chat_id: ""
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("telegram.chat_id cannot be empty"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_Telegram_But_No_BotToken",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [telegram]
+        telegram:
+          chat_id: "123456789"
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("TELEGRAM_BOT_TOKEN is required"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_Invalid_Channel",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [invalid_channel]
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("invalid channel"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_Empty_AllowedChannels",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: []
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("allowedChannels cannot be empty"),
 		},
 		{
 			name: "Invalid_Timeout_Format_Returns_Error",
@@ -256,18 +423,6 @@ logger:
 			expectedErr:    errors.New("HTTP_WRITE_TIMEOUT must be positive"),
 		},
 		{
-			name: "Invalid_TelegramEnabled_Format_Returns_Error",
-			envVariables: map[string]string{
-				"HTTP_ADDR":             ":8080",
-				"HTTP_SHUTDOWN_TIMEOUT": "5",
-				"HTTP_READ_TIMEOUT":     "5",
-				"HTTP_WRITE_TIMEOUT":    "5",
-				"TELEGRAM_ENABLED":      "invalid_bool",
-			},
-			expectedConfig: nil,
-			expectedErr:    errors.New("invalid TELEGRAM_ENABLED format"),
-		},
-		{
 			name: "Invalid_TelegramTimeout_Format_Returns_Error",
 			envVariables: map[string]string{
 				"HTTP_ADDR":             ":8080",
@@ -322,7 +477,7 @@ http:
   read_timeout: 10
   write_timeout: 10
 telegram:
-  enabled: false
+  bot_token: ""
 logger:
   level: "error"
 `,
@@ -334,10 +489,15 @@ logger:
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled: false,
+					Timeout: 10,
 				},
 				Logger: LoggerConfig{
 					Level: "error",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
 				},
 			},
 		},
@@ -467,14 +627,11 @@ func TestValidateConfig(t *testing.T) {
 					ReadTimeout:     5,
 					WriteTimeout:    5,
 				},
-				Telegram: TelegramConfig{
-					Enabled: false,
-				},
 			},
 			expectedErr: nil,
 		},
 		{
-			name: "Valid_Config_With_Telegram_Enabled",
+			name: "Valid_Config_With_Telegram",
 			config: &Config{
 				HTTP: HTTPConfig{
 					Addr:            ":8080",
@@ -483,10 +640,39 @@ func TestValidateConfig(t *testing.T) {
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled:  true,
 					BotToken: "token123",
-					ChatID:   "chat123",
 					Timeout:  10,
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Valid_Config_With_Projects",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					BotToken: "token123",
+					Timeout:  10,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"telegram", "logger"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "123456789",
+								},
+							},
+							"project2": {
+								AllowedChannels: []string{"logger"},
+							},
+						},
+					},
 				},
 			},
 			expectedErr: nil,
@@ -539,7 +725,7 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: errors.New("HTTP_WRITE_TIMEOUT must be positive"),
 		},
 		{
-			name: "Telegram_Enabled_But_Token_Missing",
+			name: "Project_With_Telegram_But_No_ChatID",
 			config: &Config{
 				HTTP: HTTPConfig{
 					Addr:            ":8080",
@@ -548,27 +734,112 @@ func TestValidateConfig(t *testing.T) {
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled: true,
-					ChatID:  "chat123",
-				},
-			},
-			expectedErr: errors.New("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true"),
-		},
-		{
-			name: "Telegram_Enabled_But_ChatID_Missing",
-			config: &Config{
-				HTTP: HTTPConfig{
-					Addr:            ":8080",
-					ShutdownTimeout: 5,
-					ReadTimeout:     5,
-					WriteTimeout:    5,
-				},
-				Telegram: TelegramConfig{
-					Enabled:  true,
 					BotToken: "token123",
 				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"telegram"},
+							},
+						},
+					},
+				},
 			},
-			expectedErr: errors.New("TELEGRAM_CHAT_ID is required when TELEGRAM_ENABLED=true"),
+			expectedErr: errors.New("telegram.chat_id is required"),
+		},
+		{
+			name: "Project_With_Telegram_But_Empty_ChatID",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					BotToken: "token123",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"telegram"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("telegram.chat_id cannot be empty"),
+		},
+		{
+			name: "Project_With_Telegram_But_No_BotToken",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"telegram"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "123456789",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("TELEGRAM_BOT_TOKEN is required"),
+		},
+		{
+			name: "Project_With_Invalid_Channel",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"invalid_channel"},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("invalid channel"),
+		},
+		{
+			name: "Project_With_Empty_AllowedChannels",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("allowedChannels cannot be empty"),
 		},
 		{
 			name: "Telegram_Timeout_Default_Value_Set",
@@ -580,9 +851,7 @@ func TestValidateConfig(t *testing.T) {
 					WriteTimeout:    5,
 				},
 				Telegram: TelegramConfig{
-					Enabled:  true,
 					BotToken: "token123",
-					ChatID:   "chat123",
 					Timeout:  0,
 				},
 			},
@@ -707,4 +976,152 @@ http:
 			t.Errorf("expected error about absolute path, got: %v", err)
 		}
 	})
+}
+
+func TestNormalizeProjectNames(t *testing.T) {
+	type testCase struct {
+		name           string
+		cfg            *Config
+		expectedKeys   []string
+		expectedValues map[string]ProjectConfig
+	}
+
+	testCases := []testCase{
+		{
+			name: "Normalize_Project_Names_To_Lowercase",
+			cfg: &Config{
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"Project1": {
+								AllowedChannels: []string{"logger"},
+							},
+							"PROJECT2": {
+								AllowedChannels: []string{"telegram"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "123456789",
+								},
+							},
+							"Project3_Mixed": {
+								AllowedChannels: []string{"logger", "telegram"},
+								Telegram: &ProjectTelegramConfig{
+									ChatID: "987654321",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []string{"project1", "project2", "project3_mixed"},
+			expectedValues: map[string]ProjectConfig{
+				"project1": {
+					AllowedChannels: []string{"logger"},
+				},
+				"project2": {
+					AllowedChannels: []string{"telegram"},
+					Telegram: &ProjectTelegramConfig{
+						ChatID: "123456789",
+					},
+				},
+				"project3_mixed": {
+					AllowedChannels: []string{"logger", "telegram"},
+					Telegram: &ProjectTelegramConfig{
+						ChatID: "987654321",
+					},
+				},
+			},
+		},
+		{
+			name: "Normalize_Empty_Projects",
+			cfg: &Config{
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{},
+					},
+				},
+			},
+			expectedKeys:   []string{},
+			expectedValues: map[string]ProjectConfig{},
+		},
+		{
+			name: "Normalize_Nil_Projects",
+			cfg: &Config{
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: nil,
+					},
+				},
+			},
+			expectedKeys:   []string{},
+			expectedValues: nil,
+		},
+		{
+			name: "Normalize_Already_Lowercase",
+			cfg: &Config{
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"logger"},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []string{"project1"},
+			expectedValues: map[string]ProjectConfig{
+				"project1": {
+					AllowedChannels: []string{"logger"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			normalizeProjectNames(tc.cfg)
+
+			if tc.cfg.Notifications.Youtrack.Projects == nil {
+				if tc.expectedValues != nil {
+					t.Error("expected projects to be not nil")
+				}
+				return
+			}
+
+			if len(tc.cfg.Notifications.Youtrack.Projects) != len(tc.expectedKeys) {
+				t.Errorf("expected %d projects, got: %d", len(tc.expectedKeys), len(tc.cfg.Notifications.Youtrack.Projects))
+			}
+
+			for _, expectedKey := range tc.expectedKeys {
+				projectConfig, exists := tc.cfg.Notifications.Youtrack.Projects[expectedKey]
+				if !exists {
+					t.Errorf("expected project %q to exist after normalization", expectedKey)
+					continue
+				}
+
+				expectedConfig := tc.expectedValues[expectedKey]
+				if len(projectConfig.AllowedChannels) != len(expectedConfig.AllowedChannels) {
+					t.Errorf("expected %d channels for project %q, got: %d", len(expectedConfig.AllowedChannels), expectedKey, len(projectConfig.AllowedChannels))
+				}
+
+				if expectedConfig.Telegram != nil {
+					if projectConfig.Telegram == nil {
+						t.Errorf("expected telegram config for project %q", expectedKey)
+					} else if projectConfig.Telegram.ChatID != expectedConfig.Telegram.ChatID {
+						t.Errorf("expected chat_id %q for project %q, got: %q", expectedConfig.Telegram.ChatID, expectedKey, projectConfig.Telegram.ChatID)
+					}
+				}
+			}
+
+			for oldKey := range map[string]ProjectConfig{
+				"Project1":       {},
+				"PROJECT2":       {},
+				"Project3_Mixed": {},
+			} {
+				if _, exists := tc.cfg.Notifications.Youtrack.Projects[oldKey]; exists {
+					t.Errorf("old key %q should not exist after normalization", oldKey)
+				}
+			}
+		})
+	}
 }

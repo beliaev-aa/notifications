@@ -2,14 +2,14 @@ package config
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"gopkg.in/yaml.v3"
+	"strings"
 )
 
-// filepathAbsFunc используется для тестирования - позволяет подменить filepath.Abs
+// filepathAbsFunc используется для тестирования - позволяет подменить проверку абсолютного пути файла
 var filepathAbsFunc = filepath.Abs
 
 const (
@@ -21,9 +21,10 @@ const (
 
 // Config содержит конфигурацию приложения
 type Config struct {
-	HTTP     HTTPConfig     `yaml:"http"`
-	Telegram TelegramConfig `yaml:"telegram"`
-	Logger   LoggerConfig   `yaml:"logger"`
+	HTTP          HTTPConfig          `yaml:"http"`
+	Telegram      TelegramConfig      `yaml:"telegram"`
+	Logger        LoggerConfig        `yaml:"logger"`
+	Notifications NotificationsConfig `yaml:"notifications"`
 }
 
 // HTTPConfig содержит конфигурацию HTTP сервера
@@ -34,17 +35,38 @@ type HTTPConfig struct {
 	WriteTimeout    int    `yaml:"write_timeout"`    // Таймаут в секундах
 }
 
-// TelegramConfig содержит конфигурацию для Telegram канала
+// TelegramConfig содержит глобальную конфигурацию для Telegram канала
+// BotToken и Timeout используются для всех проектов
 type TelegramConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	BotToken string `yaml:"bot_token"`
-	ChatID   string `yaml:"chat_id"`
-	Timeout  int    `yaml:"timeout"` // Таймаут для HTTP запросов к Telegram API (секунды)
+	BotToken string `yaml:"bot_token"` // Глобальный токен бота
+	Timeout  int    `yaml:"timeout"`   // Таймаут для HTTP запросов к Telegram API (секунды)
 }
 
 // LoggerConfig содержит конфигурацию для логгера
 type LoggerConfig struct {
 	Level string `yaml:"level"` // Уровень логирования (debug, info, warn, error)
+}
+
+// NotificationsConfig содержит конфигурацию уведомлений
+type NotificationsConfig struct {
+	Youtrack YoutrackConfig `yaml:"youtrack"`
+}
+
+// YoutrackConfig содержит конфигурацию уведомлений для YouTrack
+type YoutrackConfig struct {
+	Projects map[string]ProjectConfig `yaml:"projects"` // Ключ - имя проекта
+}
+
+// ProjectConfig содержит конфигурацию для проекта
+type ProjectConfig struct {
+	// Доступные каналы для уведомлений в проекте
+	AllowedChannels []string               `yaml:"allowedChannels"`
+	Telegram        *ProjectTelegramConfig `yaml:"telegram,omitempty"` // Обязательно, если telegram в allowedChannels
+}
+
+// ProjectTelegramConfig настройки для Telegram
+type ProjectTelegramConfig struct {
+	ChatID string `yaml:"chat_id"` // Обязательное поле для каждого проекта
 }
 
 // LoadConfig загружает конфигурацию из YAML файла и ENV переменных
@@ -65,6 +87,9 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("failed to load config from YAML: %w", err)
 		}
 	}
+
+	// Нормализуем ключи проектов к нижнему регистру
+	normalizeProjectNames(cfg)
 
 	// Перезаписываем значения из ENV переменных (приоритет ENV)
 	if err := loadFromEnv(cfg); err != nil {
@@ -145,23 +170,9 @@ func loadFromEnv(cfg *Config) error {
 	}
 
 	// Telegram
-	// Enabled
-	if val := os.Getenv("TELEGRAM_ENABLED"); val != "" {
-		enabled, err := strconv.ParseBool(val)
-		if err != nil {
-			return fmt.Errorf("invalid TELEGRAM_ENABLED format: %w", err)
-		}
-		cfg.Telegram.Enabled = enabled
-	}
-
 	// BotToken
 	if val := os.Getenv("TELEGRAM_BOT_TOKEN"); val != "" {
 		cfg.Telegram.BotToken = val
-	}
-
-	// ChatID
-	if val := os.Getenv("TELEGRAM_CHAT_ID"); val != "" {
-		cfg.Telegram.ChatID = val
 	}
 
 	// Timeout (значение в секундах, целое число)
@@ -184,6 +195,34 @@ func loadFromEnv(cfg *Config) error {
 	return nil
 }
 
+// normalizeProjectNames нормализует ключи проектов к нижнему регистру
+func normalizeProjectNames(cfg *Config) {
+	if cfg.Notifications.Youtrack.Projects == nil {
+		// Инициализируем пустую map, если она nil
+		cfg.Notifications.Youtrack.Projects = make(map[string]ProjectConfig)
+		return
+	}
+
+	if len(cfg.Notifications.Youtrack.Projects) == 0 {
+		// Если map пустая, ничего не делаем
+		return
+	}
+
+	// Собираем оригинальные ключи для логирования
+	originalKeys := make([]string, 0, len(cfg.Notifications.Youtrack.Projects))
+	for k := range cfg.Notifications.Youtrack.Projects {
+		originalKeys = append(originalKeys, k)
+	}
+
+	normalizedProjects := make(map[string]ProjectConfig)
+	for projectName, projectConfig := range cfg.Notifications.Youtrack.Projects {
+		normalizedName := strings.ToLower(projectName)
+		normalizedProjects[normalizedName] = projectConfig
+	}
+
+	cfg.Notifications.Youtrack.Projects = normalizedProjects
+}
+
 // validateConfig проверяет корректность конфигурации
 func validateConfig(cfg *Config) error {
 	if cfg.HTTP.Addr == "" {
@@ -202,17 +241,60 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("HTTP_WRITE_TIMEOUT must be positive")
 	}
 
-	// Если Telegram включен, проверяем наличие токена и chat ID
-	if cfg.Telegram.Enabled {
-		if cfg.Telegram.BotToken == "" {
-			return fmt.Errorf("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true")
+	// Устанавливаем значения по умолчанию для Telegram, если не заданы
+	if cfg.Telegram.Timeout <= 0 {
+		cfg.Telegram.Timeout = 10
+	}
+
+	// Валидация конфигурации проектов
+	if err := validateNotificationsConfig(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateNotificationsConfig проверяет корректность конфигурации уведомлений
+func validateNotificationsConfig(cfg *Config) error {
+	if cfg.Notifications.Youtrack.Projects == nil {
+		return nil // Проекты не настроены - это допустимо (уведомления будут игнорироваться)
+	}
+
+	// Проверяем каждый проект
+	for projectName, projectConfig := range cfg.Notifications.Youtrack.Projects {
+		// Проверяем, что allowedChannels не пустой
+		if len(projectConfig.AllowedChannels) == 0 {
+			return fmt.Errorf("project %q: allowedChannels cannot be empty", projectName)
 		}
-		if cfg.Telegram.ChatID == "" {
-			return fmt.Errorf("TELEGRAM_CHAT_ID is required when TELEGRAM_ENABLED=true")
+
+		// Проверяем валидность каналов
+		validChannels := map[string]bool{
+			"telegram": true,
+			"logger":   true,
 		}
-		// Устанавливаем значения по умолчанию, если не заданы
-		if cfg.Telegram.Timeout <= 0 {
-			cfg.Telegram.Timeout = 10
+
+		hasTelegram := false
+		for _, channel := range projectConfig.AllowedChannels {
+			if !validChannels[channel] {
+				return fmt.Errorf("project %q: invalid channel %q, allowed channels: telegram, logger", projectName, channel)
+			}
+			if channel == "telegram" {
+				hasTelegram = true
+			}
+		}
+
+		// Если telegram в allowedChannels, проверяем наличие telegram.chat_id
+		if hasTelegram {
+			if projectConfig.Telegram == nil {
+				return fmt.Errorf("project %q: telegram.chat_id is required when telegram is in allowedChannels", projectName)
+			}
+			if projectConfig.Telegram.ChatID == "" {
+				return fmt.Errorf("project %q: telegram.chat_id cannot be empty when telegram is in allowedChannels", projectName)
+			}
+			// Проверяем, что глобальный bot_token указан
+			if cfg.Telegram.BotToken == "" {
+				return fmt.Errorf("TELEGRAM_BOT_TOKEN is required when telegram is used in project configurations")
+			}
 		}
 	}
 

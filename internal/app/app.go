@@ -4,6 +4,7 @@ import (
 	"github.com/beliaev-aa/notifications/internal/adapter/http"
 	"github.com/beliaev-aa/notifications/internal/adapter/notification"
 	"github.com/beliaev-aa/notifications/internal/adapter/notification/channel"
+	"github.com/beliaev-aa/notifications/internal/adapter/youtrack"
 	"github.com/beliaev-aa/notifications/internal/config"
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/service"
@@ -25,15 +26,34 @@ func NewApp(cfg *config.Config, logger *logrus.Logger) *App {
 	// Регистрируем каналы отправки уведомлений
 	notificationSender.RegisterChannel(channel.NewLoggerChannel(logger))
 
-	// Регистрируем Telegram канал, если он включен
-	if cfg.Telegram.Enabled {
+	// Регистрируем Telegram канал (используется для проектов с telegram в allowedChannels)
+	// Telegram канал создается только если указан bot_token
+	if cfg.Telegram.BotToken != "" {
 		httpClient := &nethttp.Client{
 			Timeout: time.Duration(cfg.Telegram.Timeout) * time.Second,
 		}
 		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger, httpClient))
 	}
 
-	webhookService := service.NewWebhookService(notificationSender, logger)
+	// Создаем сервис конфигурации проектов
+	projectConfigService := service.NewProjectConfigService(cfg, logger)
+
+	// Логируем загруженные проекты при старте
+	if cfg.Notifications.Youtrack.Projects != nil && len(cfg.Notifications.Youtrack.Projects) > 0 {
+		projects := make([]string, 0, len(cfg.Notifications.Youtrack.Projects))
+		for projectName := range cfg.Notifications.Youtrack.Projects {
+			projects = append(projects, projectName)
+		}
+		logger.WithFields(logrus.Fields{
+			"projects": projects,
+			"count":    len(projects),
+		}).Info("Loaded project configurations")
+	} else {
+		logger.Warn("No project configurations found in config file")
+	}
+
+	youtrackParser := youtrack.NewParser(projectConfigService)
+	webhookService := service.NewWebhookService(notificationSender, youtrackParser, logger)
 
 	// Создаем HTTP адаптер с зависимостью
 	httpServer := http.NewServer(&cfg.HTTP, webhookService, logger)

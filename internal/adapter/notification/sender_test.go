@@ -132,7 +132,7 @@ func TestSender_Send(t *testing.T) {
 				mockChannel := mocks.NewMockNotificationChannel(ctrl)
 				mockChannel.EXPECT().Channel().Return(tc.channelName).AnyTimes()
 				if tc.message != "" || tc.name == "Send_With_Whitespace_Message" {
-					sendCall := mockChannel.EXPECT().Send(tc.message)
+					sendCall := mockChannel.EXPECT().Send("", tc.message)
 					if tc.channelError != nil {
 						sendCall.Return(tc.channelError)
 					} else {
@@ -142,7 +142,7 @@ func TestSender_Send(t *testing.T) {
 				sender.RegisterChannel(mockChannel)
 			}
 
-			err := sender.Send(tc.channel, tc.message)
+			err := sender.Send(tc.channel, "", tc.message)
 
 			if tc.expectedError {
 				if err == nil {
@@ -286,7 +286,7 @@ func TestSender_Integration(t *testing.T) {
 				mockChannel := mocks.NewMockNotificationChannel(ctrl)
 				mockChannel.EXPECT().Channel().Return(channelName).AnyTimes()
 				if tc.checkSend {
-					mockChannel.EXPECT().Send(tc.messages[i]).Return(nil)
+					mockChannel.EXPECT().Send("", tc.messages[i]).Return(nil)
 				}
 				sender.RegisterChannel(mockChannel)
 			}
@@ -297,7 +297,7 @@ func TestSender_Integration(t *testing.T) {
 
 			if tc.checkSend {
 				for i, channelName := range tc.channels {
-					err := sender.Send(channelName, tc.messages[i])
+					err := sender.Send(channelName, "", tc.messages[i])
 					if err != nil {
 						t.Errorf("unexpected error sending to channel %q: %v", channelName, err)
 					}
@@ -359,10 +359,10 @@ func TestSender_EdgeCases(t *testing.T) {
 
 			mockChannel := mocks.NewMockNotificationChannel(ctrl)
 			mockChannel.EXPECT().Channel().Return(tc.channel).AnyTimes()
-			mockChannel.EXPECT().Send(tc.message).Return(nil)
+			mockChannel.EXPECT().Send("", tc.message).Return(nil)
 			sender.RegisterChannel(mockChannel)
 
-			err := sender.Send(tc.channel, tc.message)
+			err := sender.Send(tc.channel, "", tc.message)
 
 			if tc.expectedError {
 				if err == nil {

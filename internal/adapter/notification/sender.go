@@ -21,7 +21,7 @@ func NewSender(logger *logrus.Logger) port.NotificationSender {
 }
 
 // Send отправляет уведомление через указанный канал
-func (s *Sender) Send(channel string, formattedMessage string) error {
+func (s *Sender) Send(channel string, chatID string, formattedMessage string) error {
 	if formattedMessage == "" {
 		return fmt.Errorf("formatted message cannot be empty")
 	}
@@ -31,7 +31,7 @@ func (s *Sender) Send(channel string, formattedMessage string) error {
 		return fmt.Errorf("channel '%s' is not registered", channel)
 	}
 
-	return ch.Send(formattedMessage)
+	return ch.Send(chatID, formattedMessage)
 }
 
 // RegisterChannel регистрирует новый канал для отправки уведомлений

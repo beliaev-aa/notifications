@@ -4,20 +4,33 @@
 # Значения таймаутов указываются в секундах (целое число)
 http:
   addr: ":3000"
-  shutdown_timeout: 5 # секунды
-  read_timeout: 5     # секунды
-  write_timeout: 5    # секунды
+  shutdown_timeout: 5                       # секунды
+  read_timeout: 5                           # секунды
+  write_timeout: 5                          # секунды
 
 # Telegram канал
+# bot_token и timeout используются глобально для всех проектов
+# chat_id настраивается для каждого проекта отдельно (приватность проектов)
 telegram:
-  enabled: false
-  bot_token: ""
-  chat_id: ""
-  timeout: 10         # Таймаут для HTTP запросов к Telegram API (секунды)
+  bot_token: ""                             # Глобальный токен бота (обязателен, если используется Telegram)
+  timeout: 10                               # Таймаут для HTTP запросов к Telegram API (секунды)
 
 # Логгер
 logger:
-  level: "debug"  # Уровень логирования (debug, info, warn, error)
+  level: "debug"                            # Уровень логирования (debug, info, warn, error)
+
+notifications:
+  youtrack:
+    projects:
+      projectName1:
+        allowedChannels: [telegram, logger]
+        telegram:
+          chat_id: "123456789"                # Обязательно, если telegram в allowedChannels
+      projectName2:
+        allowedChannels: [logger]
+      projectName3:
+        allowedChannels: [telegram]
+        telegram:
+          chat_id: "987654321"
 
 ### TODO 1: Добавить возможность выбирать доступные поля и их порядок для отображения в сообщении
-### TODO 3: Настройки Telegram вынести в настройки проекта, там же настраивать каналы доступные проекту (youtrack->project->...)

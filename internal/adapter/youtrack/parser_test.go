@@ -1,7 +1,11 @@
 package youtrack
 
 import (
+	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/domain/port/parser"
+	"github.com/beliaev-aa/notifications/tests/mocks"
+	"github.com/golang/mock/gomock"
+	"strings"
 	"testing"
 )
 
@@ -22,7 +26,11 @@ func TestNewParser(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewParser()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			p := NewParser(mockProjectConfig)
 
 			if tc.checkNil {
 				if p != nil {
@@ -73,12 +81,12 @@ func TestParser_ParseJSON(t *testing.T) {
 			},
 			"assignee": {
 				"fullName": "Jane Doe",
-				"login": "janedoe"
+				"login": "login"
 			}
 		},
 		"updater": {
 			"fullName": "John Doe",
-			"login": "johndoe",
+			"login": "login",
 			"email": "john@example.com"
 		},
 		"changes": [
@@ -209,7 +217,11 @@ func TestParser_ParseJSON(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewParser()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			p := NewParser(mockProjectConfig)
 
 			result, err := p.ParseJSON(tc.payload)
 
@@ -261,7 +273,11 @@ func TestParser_NewFormatter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewParser()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			p := NewParser(mockProjectConfig)
 
 			formatter := p.NewFormatter()
 
@@ -311,9 +327,13 @@ func TestParser_Integration(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			parser := NewParser()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			payload, err := parser.ParseJSON(tc.payload)
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			youtrackParser := NewParser(mockProjectConfig)
+
+			payload, err := youtrackParser.ParseJSON(tc.payload)
 			if err != nil {
 				t.Fatalf("unexpected error parsing JSON: %v", err)
 			}
@@ -323,7 +343,7 @@ func TestParser_Integration(t *testing.T) {
 			}
 
 			if tc.checkFormatter {
-				formatter := parser.NewFormatter()
+				formatter := youtrackParser.NewFormatter()
 				if formatter == nil {
 					t.Fatal("expected formatter to be created, got: nil")
 				}
@@ -389,7 +409,11 @@ func TestParser_ParseJSON_EdgeCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewParser()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			p := NewParser(mockProjectConfig)
 
 			result, err := p.ParseJSON(tc.payload)
 
@@ -407,6 +431,311 @@ func TestParser_ParseJSON_EdgeCases(t *testing.T) {
 				if result == nil {
 					t.Error("expected result to be not nil, got: nil")
 				}
+			}
+		})
+	}
+}
+
+func TestParser_GetAllowedChannels(t *testing.T) {
+	type testCase struct {
+		name             string
+		payload          *parser.YoutrackWebhookPayload
+		projectAllowed   bool
+		allowedChannels  []string
+		expectedChannels []string
+	}
+
+	projectName := "TestProject"
+	emptyProjectName := ""
+
+	testCases := []testCase{
+		{
+			name: "GetAllowedChannels_Project_Allowed",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: &projectName},
+			},
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelLogger, port.ChannelTelegram},
+			expectedChannels: []string{port.ChannelLogger, port.ChannelTelegram},
+		},
+		{
+			name: "GetAllowedChannels_Project_Not_Allowed",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: &projectName},
+			},
+			projectAllowed:   false,
+			allowedChannels:  []string{},
+			expectedChannels: []string{},
+		},
+		{
+			name: "GetAllowedChannels_Project_Nil",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: nil,
+			},
+			projectAllowed:   false,
+			allowedChannels:  []string{},
+			expectedChannels: []string{},
+		},
+		{
+			name: "GetAllowedChannels_Project_Name_Nil",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: nil},
+			},
+			projectAllowed:   false,
+			allowedChannels:  []string{},
+			expectedChannels: []string{},
+		},
+		{
+			name: "GetAllowedChannels_Project_Name_Empty",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: &emptyProjectName},
+			},
+			projectAllowed:   false,
+			allowedChannels:  []string{},
+			expectedChannels: []string{},
+		},
+		{
+			name: "GetAllowedChannels_Only_Logger",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: &projectName},
+			},
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelLogger},
+			expectedChannels: []string{port.ChannelLogger},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			p := NewParser(mockProjectConfig)
+
+			if tc.payload.Project != nil && tc.payload.Project.Name != nil && *tc.payload.Project.Name != "" {
+				normalizedName := strings.ToLower(*tc.payload.Project.Name)
+				mockProjectConfig.EXPECT().IsProjectAllowed(normalizedName).Return(tc.projectAllowed)
+				if tc.projectAllowed {
+					mockProjectConfig.EXPECT().GetAllowedChannels(normalizedName).Return(tc.allowedChannels)
+				}
+			}
+
+			channels := p.GetAllowedChannels(tc.payload)
+
+			if len(channels) != len(tc.expectedChannels) {
+				t.Errorf("expected %d channels, got: %d", len(tc.expectedChannels), len(channels))
+			}
+
+			for i, expected := range tc.expectedChannels {
+				if i >= len(channels) || channels[i] != expected {
+					t.Errorf("expected channel %q at index %d, got: %v", expected, i, channels)
+					break
+				}
+			}
+		})
+	}
+}
+
+func TestParser_GetTelegramChatID(t *testing.T) {
+	type testCase struct {
+		name              string
+		projectName       string
+		chatID            string
+		hasChatID         bool
+		expectedChatID    string
+		expectedHasChatID bool
+	}
+
+	testCases := []testCase{
+		{
+			name:              "GetTelegramChatID_Project_With_Telegram",
+			projectName:       "TestProject",
+			chatID:            "test_chat_id",
+			hasChatID:         true,
+			expectedChatID:    "test_chat_id",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetTelegramChatID_Project_Without_Telegram",
+			projectName:       "TestProject",
+			chatID:            "",
+			hasChatID:         false,
+			expectedChatID:    "",
+			expectedHasChatID: false,
+		},
+		{
+			name:              "GetTelegramChatID_Non_Existent_Project",
+			projectName:       "NonExistentProject",
+			chatID:            "",
+			hasChatID:         false,
+			expectedChatID:    "",
+			expectedHasChatID: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			normalizedName := strings.ToLower(tc.projectName)
+			mockProjectConfig.EXPECT().GetTelegramChatID(normalizedName).Return(tc.chatID, tc.hasChatID)
+
+			p := NewParser(mockProjectConfig)
+
+			chatID, hasChatID := p.GetTelegramChatID(tc.projectName)
+
+			if chatID != tc.expectedChatID {
+				t.Errorf("expected chatID %q, got: %q", tc.expectedChatID, chatID)
+			}
+
+			if hasChatID != tc.expectedHasChatID {
+				t.Errorf("expected hasChatID %v, got: %v", tc.expectedHasChatID, hasChatID)
+			}
+		})
+	}
+}
+
+func TestParser_GetAllowedChannels_CaseInsensitive(t *testing.T) {
+	type testCase struct {
+		name             string
+		projectName      string
+		projectNameCase  string
+		allowedChannels  []string
+		expectedChannels []string
+	}
+
+	testCases := []testCase{
+		{
+			name:             "GetAllowedChannels_Uppercase_Project_Name",
+			projectName:      "project1",
+			projectNameCase:  "PROJECT1",
+			allowedChannels:  []string{"logger", "telegram"},
+			expectedChannels: []string{"logger", "telegram"},
+		},
+		{
+			name:             "GetAllowedChannels_Mixed_Case_Project_Name",
+			projectName:      "project1",
+			projectNameCase:  "Project1",
+			allowedChannels:  []string{"logger"},
+			expectedChannels: []string{"logger"},
+		},
+		{
+			name:             "GetAllowedChannels_Lowercase_Project_Name",
+			projectName:      "PROJECT1",
+			projectNameCase:  "project1",
+			allowedChannels:  []string{"telegram"},
+			expectedChannels: []string{"telegram"},
+		},
+		{
+			name:             "GetAllowedChannels_Mixed_Case_With_Underscore",
+			projectName:      "project_test",
+			projectNameCase:  "Project_Test",
+			allowedChannels:  []string{"logger", "telegram"},
+			expectedChannels: []string{"logger", "telegram"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			normalizedName := strings.ToLower(tc.projectNameCase)
+			mockProjectConfig.EXPECT().IsProjectAllowed(normalizedName).Return(true)
+			mockProjectConfig.EXPECT().GetAllowedChannels(normalizedName).Return(tc.allowedChannels)
+
+			p := NewParser(mockProjectConfig)
+
+			payload := &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &tc.projectNameCase,
+				},
+			}
+
+			channels := p.GetAllowedChannels(payload)
+
+			if len(channels) != len(tc.expectedChannels) {
+				t.Errorf("expected %d channels, got: %d", len(tc.expectedChannels), len(channels))
+			}
+
+			for i, expectedChannel := range tc.expectedChannels {
+				if i >= len(channels) {
+					t.Errorf("expected channel %q at index %d, got: no channel", expectedChannel, i)
+					continue
+				}
+				if channels[i] != expectedChannel {
+					t.Errorf("expected channel %q at index %d, got: %q", expectedChannel, i, channels[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParser_GetTelegramChatID_CaseInsensitive(t *testing.T) {
+	type testCase struct {
+		name              string
+		projectName       string
+		projectNameCase   string
+		chatID            string
+		hasChatID         bool
+		expectedChatID    string
+		expectedHasChatID bool
+	}
+
+	testCases := []testCase{
+		{
+			name:              "GetTelegramChatID_Uppercase_Project_Name",
+			projectName:       "project1",
+			projectNameCase:   "PROJECT1",
+			chatID:            "123456789",
+			hasChatID:         true,
+			expectedChatID:    "123456789",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetTelegramChatID_Mixed_Case_Project_Name",
+			projectName:       "project1",
+			projectNameCase:   "Project1",
+			chatID:            "987654321",
+			hasChatID:         true,
+			expectedChatID:    "987654321",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetTelegramChatID_Lowercase_Project_Name",
+			projectName:       "PROJECT1",
+			projectNameCase:   "project1",
+			chatID:            "111222333",
+			hasChatID:         true,
+			expectedChatID:    "111222333",
+			expectedHasChatID: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+
+			normalizedName := strings.ToLower(tc.projectNameCase)
+			mockProjectConfig.EXPECT().GetTelegramChatID(normalizedName).Return(tc.chatID, tc.hasChatID)
+
+			p := NewParser(mockProjectConfig)
+
+			chatID, hasChatID := p.GetTelegramChatID(tc.projectNameCase)
+
+			if chatID != tc.expectedChatID {
+				t.Errorf("expected chatID %q, got: %q", tc.expectedChatID, chatID)
+			}
+
+			if hasChatID != tc.expectedHasChatID {
+				t.Errorf("expected hasChatID %v, got: %v", tc.expectedHasChatID, hasChatID)
 			}
 		})
 	}

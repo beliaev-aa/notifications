@@ -34,6 +34,35 @@ func (m *MockYoutrackParser) EXPECT() *MockYoutrackParserMockRecorder {
 	return m.recorder
 }
 
+// GetAllowedChannels mocks base method.
+func (m *MockYoutrackParser) GetAllowedChannels(payload *parser.YoutrackWebhookPayload) []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllowedChannels", payload)
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetAllowedChannels indicates an expected call of GetAllowedChannels.
+func (mr *MockYoutrackParserMockRecorder) GetAllowedChannels(payload interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllowedChannels", reflect.TypeOf((*MockYoutrackParser)(nil).GetAllowedChannels), payload)
+}
+
+// GetTelegramChatID mocks base method.
+func (m *MockYoutrackParser) GetTelegramChatID(projectName string) (string, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelegramChatID", projectName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetTelegramChatID indicates an expected call of GetTelegramChatID.
+func (mr *MockYoutrackParserMockRecorder) GetTelegramChatID(projectName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramChatID", reflect.TypeOf((*MockYoutrackParser)(nil).GetTelegramChatID), projectName)
+}
+
 // NewFormatter mocks base method.
 func (m *MockYoutrackParser) NewFormatter() parser.YoutrackFormatter {
 	m.ctrl.T.Helper()

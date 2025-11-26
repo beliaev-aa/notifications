@@ -2,7 +2,6 @@ package service
 
 import (
 	"github.com/beliaev-aa/notifications/internal/adapter/formatter"
-	"github.com/beliaev-aa/notifications/internal/adapter/youtrack"
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/domain/port/parser"
 	"github.com/sirupsen/logrus"
@@ -18,10 +17,10 @@ type WebhookService struct {
 }
 
 // NewWebhookService создает новый экземпляр сервиса для обработки webhook запросов
-func NewWebhookService(notificationSender port.NotificationSender, logger *logrus.Logger) port.WebhookService {
+func NewWebhookService(notificationSender port.NotificationSender, youtrackParser parser.YoutrackParser, logger *logrus.Logger) port.WebhookService {
 	return &WebhookService{
 		notificationSender: notificationSender,
-		youtrackParser:     youtrack.NewParser(),
+		youtrackParser:     youtrackParser,
 		logger:             logger,
 	}
 }
@@ -47,9 +46,6 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 		"body":    string(body),
 	}).Debug("Webhook received")
 
-	// Определяем каналы для отправки уведомлений
-	channels := w.determineNotificationChannels()
-
 	// Разбираем данные из YouTrack
 	payload, parseErr := w.youtrackParser.ParseJSON(body)
 	if parseErr != nil {
@@ -59,6 +55,27 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 	w.logger.WithFields(logrus.Fields{
 		"payload": payload,
 	}).Debug("Parsed payload")
+
+	// Получаем разрешенные каналы для проекта
+	channels := w.youtrackParser.GetAllowedChannels(payload)
+
+	// Извлекаем имя проекта для логирования
+	projectName := ""
+	if payload.Project != nil && payload.Project.Name != nil {
+		projectName = *payload.Project.Name
+	}
+
+	if len(channels) == 0 {
+		if projectName != "" {
+			w.logger.WithFields(logrus.Fields{
+				"project": projectName,
+			}).Info("Project configuration not found or no allowed channels, ignoring notification")
+		} else {
+			w.logger.Warn("Project name is empty in webhook payload, ignoring notification")
+		}
+		return nil // Игнорируем, но не возвращаем ошибку
+	}
+
 	youtrackFormatter := w.youtrackParser.NewFormatter()
 
 	// Регистрируем специальное форматирование для Telegram канала
@@ -69,7 +86,21 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 		// Форматируем уведомление для конкретного канала
 		formattedMessage := youtrackFormatter.Format(payload, channel)
 
-		if err = w.notificationSender.Send(channel, formattedMessage); err != nil {
+		// Получаем chatID для Telegram канала
+		chatID := ""
+		if channel == port.ChannelTelegram {
+			var ok bool
+			chatID, ok = w.youtrackParser.GetTelegramChatID(projectName)
+			if !ok || chatID == "" {
+				w.logger.WithFields(logrus.Fields{
+					"project": projectName,
+					"channel": channel,
+				}).Warn("Telegram chat ID not found for project, skipping notification")
+				continue
+			}
+		}
+
+		if err = w.notificationSender.Send(channel, chatID, formattedMessage); err != nil {
 			w.logger.WithError(err).WithFields(logrus.Fields{
 				"channel": channel,
 			}).Error("Failed to send notification to channel")
@@ -78,9 +109,4 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 	}
 
 	return nil
-}
-
-// determineNotificationChannels определяет каналы для отправки уведомления. Возвращает список каналов, в которые нужно отправить уведомление
-func (w *WebhookService) determineNotificationChannels() []string {
-	return []string{port.ChannelLogger, port.ChannelTelegram}
 }

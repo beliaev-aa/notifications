@@ -49,17 +49,17 @@ func (mr *MockNotificationChannelMockRecorder) Channel() *gomock.Call {
 }
 
 // Send mocks base method.
-func (m *MockNotificationChannel) Send(formattedMessage string) error {
+func (m *MockNotificationChannel) Send(chatID, formattedMessage string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", formattedMessage)
+	ret := m.ctrl.Call(m, "Send", chatID, formattedMessage)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockNotificationChannelMockRecorder) Send(formattedMessage interface{}) *gomock.Call {
+func (mr *MockNotificationChannelMockRecorder) Send(chatID, formattedMessage interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockNotificationChannel)(nil).Send), formattedMessage)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockNotificationChannel)(nil).Send), chatID, formattedMessage)
 }
 
 // MockNotificationSender is a mock of NotificationSender interface.
@@ -98,15 +98,15 @@ func (mr *MockNotificationSenderMockRecorder) RegisterChannel(channel interface{
 }
 
 // Send mocks base method.
-func (m *MockNotificationSender) Send(channel, formattedMessage string) error {
+func (m *MockNotificationSender) Send(channel, chatID, formattedMessage string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", channel, formattedMessage)
+	ret := m.ctrl.Call(m, "Send", channel, chatID, formattedMessage)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockNotificationSenderMockRecorder) Send(channel, formattedMessage interface{}) *gomock.Call {
+func (mr *MockNotificationSenderMockRecorder) Send(channel, chatID, formattedMessage interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockNotificationSender)(nil).Send), channel, formattedMessage)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockNotificationSender)(nil).Send), channel, chatID, formattedMessage)
 }
