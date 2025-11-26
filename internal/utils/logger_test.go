@@ -98,6 +98,24 @@ func TestInitLogger(t *testing.T) {
 			checkServiceField: true,
 		},
 		{
+			name: "Invalid_Level_With_Special_Chars_Falls_Back_To_Debug",
+			envVariables: map[string]string{
+				"LOG_LEVEL": "invalid@level#123",
+			},
+			expectedLevel:     logrus.DebugLevel,
+			expectedFormatter: "json",
+			checkServiceField: true,
+		},
+		{
+			name: "Invalid_Level_With_Numbers_Only_Falls_Back_To_Debug",
+			envVariables: map[string]string{
+				"LOG_LEVEL": "12345",
+			},
+			expectedLevel:     logrus.DebugLevel,
+			expectedFormatter: "json",
+			checkServiceField: true,
+		},
+		{
 			name: "Empty_LOG_LEVEL_Falls_Back_To_Debug",
 			envVariables: map[string]string{
 				"LOG_LEVEL": "",
@@ -129,8 +147,19 @@ func TestInitLogger(t *testing.T) {
 			}
 
 			logLevel, err := logrus.ParseLevel(logLevelStr)
+			// Явная проверка: если err != nil, должен быть установлен DebugLevel
 			if err != nil {
+				// Проверяем, что при ошибке парсинга устанавливается DebugLevel
+				originalLevel := logLevel // Сохраняем исходное значение для проверки
 				logLevel = logrus.DebugLevel
+				// Проверяем, что после установки logLevel действительно DebugLevel
+				if logLevel != logrus.DebugLevel {
+					t.Errorf("expected DebugLevel when err != nil, got: %v (original: %v)", logLevel, originalLevel)
+				}
+				// Проверяем, что err действительно не nil для невалидных уровней
+				if err == nil {
+					t.Error("expected error when parsing invalid level, got: nil")
+				}
 			}
 
 			logger.SetLevel(logLevel)
@@ -298,6 +327,72 @@ func TestInitLogger_Integration(t *testing.T) {
 
 			if tc.checkLogging {
 				logger.Debug("test debug message")
+			}
+
+			os.Clearenv()
+		})
+	}
+}
+
+func TestInitLogger_InvalidLevel_ErrorHandling(t *testing.T) {
+	type testCase struct {
+		name          string
+		envVariables  map[string]string
+		expectedLevel logrus.Level
+	}
+
+	testCases := []testCase{
+		{
+			name: "Invalid_Level_Sets_DebugLevel_On_Error",
+			envVariables: map[string]string{
+				"LOG_LEVEL": "invalid_level",
+			},
+			expectedLevel: logrus.DebugLevel,
+		},
+		{
+			name: "Invalid_Level_With_Special_Chars_Sets_DebugLevel_On_Error",
+			envVariables: map[string]string{
+				"LOG_LEVEL": "invalid@level#123",
+			},
+			expectedLevel: logrus.DebugLevel,
+		},
+		{
+			name: "Invalid_Level_With_Numbers_Sets_DebugLevel_On_Error",
+			envVariables: map[string]string{
+				"LOG_LEVEL": "12345",
+			},
+			expectedLevel: logrus.DebugLevel,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Clearenv()
+
+			for key, value := range tc.envVariables {
+				if err := os.Setenv(key, value); err != nil {
+					t.Fatalf("failed to set env variable %s: %v", key, err)
+				}
+			}
+
+			// Тестируем реальную функцию InitLogger
+			logger := InitLogger()
+
+			// Проверяем, что при ошибке парсинга уровня устанавливается DebugLevel
+			if logger.GetLevel() != tc.expectedLevel {
+				t.Errorf("expected level %v when parsing invalid level, got: %v", tc.expectedLevel, logger.GetLevel())
+			}
+
+			// Проверяем, что ParseLevel действительно возвращает ошибку для невалидного уровня
+			logLevelStr := os.Getenv("LOG_LEVEL")
+			_, err := logrus.ParseLevel(logLevelStr)
+			if err == nil {
+				t.Error("expected error when parsing invalid level, got: nil")
+			}
+
+			// Проверяем, что несмотря на ошибку, логгер работает с DebugLevel
+			if logger.GetLevel() != logrus.DebugLevel {
+				t.Errorf("expected DebugLevel after error handling, got: %v", logger.GetLevel())
 			}
 
 			os.Clearenv()
