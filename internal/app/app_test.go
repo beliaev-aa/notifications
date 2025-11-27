@@ -1,13 +1,11 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"github.com/beliaev-aa/notifications/internal/config"
 	"github.com/beliaev-aa/notifications/tests/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/sirupsen/logrus"
-	"strings"
 	"testing"
 )
 
@@ -17,6 +15,7 @@ func TestNewApp(t *testing.T) {
 		cfg             *config.Config
 		logger          *logrus.Logger
 		telegramEnabled bool
+		vkteamsEnabled  bool
 		checkStructure  bool
 	}
 
@@ -39,6 +38,7 @@ func TestNewApp(t *testing.T) {
 			},
 			logger:          logrus.New(),
 			telegramEnabled: true,
+			vkteamsEnabled:  false,
 			checkStructure:  true,
 		},
 		{
@@ -52,6 +52,54 @@ func TestNewApp(t *testing.T) {
 			},
 			logger:          logrus.New(),
 			telegramEnabled: false,
+			vkteamsEnabled:  false,
+			checkStructure:  true,
+		},
+		{
+			name: "Create_App_With_VKTeams_BotToken",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+				VKTeams: config.VKTeamsConfig{
+					BotToken: "test_vkteams_token",
+					Timeout:  10,
+				},
+			},
+			logger:          logrus.New(),
+			telegramEnabled: false,
+			vkteamsEnabled:  true,
+			checkStructure:  true,
+		},
+		{
+			name: "Create_App_Without_VKTeams_BotToken",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+				VKTeams: config.VKTeamsConfig{
+					BotToken: "",
+					Timeout:  10,
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+			},
+			logger:          logrus.New(),
+			telegramEnabled: false,
+			vkteamsEnabled:  false,
+			checkStructure:  true,
+		},
+		{
+			name: "Create_App_With_Both_Telegram_And_VKTeams_BotToken",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+				Telegram: config.TelegramConfig{
+					BotToken: "test_telegram_token",
+					Timeout:  10,
+				},
+				VKTeams: config.VKTeamsConfig{
+					BotToken: "test_vkteams_token",
+					Timeout:  10,
+				},
+			},
+			logger:          logrus.New(),
+			telegramEnabled: true,
+			vkteamsEnabled:  true,
 			checkStructure:  true,
 		},
 	}
@@ -198,6 +246,7 @@ func TestApp_Integration(t *testing.T) {
 		cfg            *config.Config
 		logger         *logrus.Logger
 		telegramConfig config.TelegramConfig
+		vkteamsConfig  config.VKTeamsConfig
 	}
 
 	validHTTPConfig := config.HTTPConfig{
@@ -218,6 +267,10 @@ func TestApp_Integration(t *testing.T) {
 				BotToken: "test_token",
 				Timeout:  10,
 			},
+			vkteamsConfig: config.VKTeamsConfig{
+				Timeout: 10,
+				ApiUrl:  "https://api.example.com/bot/v1",
+			},
 		},
 		{
 			name: "Full_Integration_Test_Without_Telegram",
@@ -229,12 +282,63 @@ func TestApp_Integration(t *testing.T) {
 				BotToken: "",
 				Timeout:  10,
 			},
+			vkteamsConfig: config.VKTeamsConfig{
+				Timeout: 10,
+				ApiUrl:  "https://api.example.com/bot/v1",
+			},
+		},
+		{
+			name: "Full_Integration_Test_With_VKTeams",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+			},
+			logger: logrus.New(),
+			telegramConfig: config.TelegramConfig{
+				Timeout: 10,
+			},
+			vkteamsConfig: config.VKTeamsConfig{
+				BotToken: "test_vkteams_token",
+				Timeout:  10,
+				ApiUrl:   "https://api.example.com/bot/v1",
+			},
+		},
+		{
+			name: "Full_Integration_Test_Without_VKTeams",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+			},
+			logger: logrus.New(),
+			telegramConfig: config.TelegramConfig{
+				Timeout: 10,
+			},
+			vkteamsConfig: config.VKTeamsConfig{
+				BotToken: "",
+				Timeout:  10,
+				ApiUrl:   "https://api.example.com/bot/v1",
+			},
+		},
+		{
+			name: "Full_Integration_Test_With_Both_Telegram_And_VKTeams",
+			cfg: &config.Config{
+				HTTP: validHTTPConfig,
+			},
+			logger: logrus.New(),
+			telegramConfig: config.TelegramConfig{
+				BotToken: "test_telegram_token",
+				Timeout:  10,
+			},
+			vkteamsConfig: config.VKTeamsConfig{
+				BotToken: "test_vkteams_token",
+				Timeout:  10,
+				ApiUrl:   "https://api.example.com/bot/v1",
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.cfg.Telegram = tc.telegramConfig
+			tc.cfg.VKTeams = tc.vkteamsConfig
 
 			app := NewApp(tc.cfg, tc.logger)
 
@@ -244,164 +348,6 @@ func TestApp_Integration(t *testing.T) {
 
 			if app.httpServer == nil {
 				t.Fatal("expected httpServer to be initialized, got: nil")
-			}
-		})
-	}
-}
-
-func TestNewApp_ProjectConfigurations_Logging(t *testing.T) {
-	type testCase struct {
-		name               string
-		cfg                *config.Config
-		logger             *logrus.Logger
-		expectedLogMessage string
-		expectedProjects   []string
-		expectedCount      int
-		checkProjectsInLog bool
-	}
-
-	validHTTPConfig := config.HTTPConfig{
-		Addr:            ":8080",
-		ShutdownTimeout: 10,
-		ReadTimeout:     5,
-		WriteTimeout:    5,
-	}
-
-	testCases := []testCase{
-		{
-			name: "Log_Loaded_Project_Configurations_With_Projects",
-			cfg: &config.Config{
-				HTTP: validHTTPConfig,
-				Telegram: config.TelegramConfig{
-					BotToken: "",
-					Timeout:  10,
-				},
-				Notifications: config.NotificationsConfig{
-					Youtrack: config.YoutrackConfig{
-						Projects: map[string]config.ProjectConfig{
-							"demo": {
-								AllowedChannels: []string{"logger"},
-							},
-							"project2": {
-								AllowedChannels: []string{"telegram"},
-								Telegram: &config.ProjectTelegramConfig{
-									ChatID: "123456789",
-								},
-							},
-						},
-					},
-				},
-			},
-			logger:             logrus.New(),
-			expectedLogMessage: "Loaded project configurations",
-			expectedProjects:   []string{"demo", "project2"},
-			expectedCount:      2,
-			checkProjectsInLog: true,
-		},
-		{
-			name: "Log_No_Project_Configurations_When_Projects_Nil",
-			cfg: &config.Config{
-				HTTP: validHTTPConfig,
-				Telegram: config.TelegramConfig{
-					BotToken: "",
-					Timeout:  10,
-				},
-				Notifications: config.NotificationsConfig{
-					Youtrack: config.YoutrackConfig{
-						Projects: nil,
-					},
-				},
-			},
-			logger:             logrus.New(),
-			expectedLogMessage: "No project configurations found in config file",
-			expectedProjects:   nil,
-			expectedCount:      0,
-			checkProjectsInLog: false,
-		},
-		{
-			name: "Log_No_Project_Configurations_When_Projects_Empty",
-			cfg: &config.Config{
-				HTTP: validHTTPConfig,
-				Telegram: config.TelegramConfig{
-					BotToken: "",
-					Timeout:  10,
-				},
-				Notifications: config.NotificationsConfig{
-					Youtrack: config.YoutrackConfig{
-						Projects: make(map[string]config.ProjectConfig),
-					},
-				},
-			},
-			logger:             logrus.New(),
-			expectedLogMessage: "No project configurations found in config file",
-			expectedProjects:   nil,
-			expectedCount:      0,
-			checkProjectsInLog: false,
-		},
-		{
-			name: "Log_Loaded_Project_Configurations_Single_Project",
-			cfg: &config.Config{
-				HTTP: validHTTPConfig,
-				Telegram: config.TelegramConfig{
-					BotToken: "",
-					Timeout:  10,
-				},
-				Notifications: config.NotificationsConfig{
-					Youtrack: config.YoutrackConfig{
-						Projects: map[string]config.ProjectConfig{
-							"demo": {
-								AllowedChannels: []string{"logger", "telegram"},
-								Telegram: &config.ProjectTelegramConfig{
-									ChatID: "123456789",
-								},
-							},
-						},
-					},
-				},
-			},
-			logger:             logrus.New(),
-			expectedLogMessage: "Loaded project configurations",
-			expectedProjects:   []string{"demo"},
-			expectedCount:      1,
-			checkProjectsInLog: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			logger := logrus.New()
-			logger.SetOutput(&buf)
-			logger.SetFormatter(&logrus.JSONFormatter{})
-			logger.SetLevel(logrus.InfoLevel)
-
-			app := NewApp(tc.cfg, logger)
-
-			if app == nil {
-				t.Error("expected app to be created, got: nil")
-				return
-			}
-
-			logOutput := buf.String()
-
-			if !strings.Contains(logOutput, tc.expectedLogMessage) {
-				t.Errorf("expected log message %q, got output: %s", tc.expectedLogMessage, logOutput)
-			}
-
-			if tc.checkProjectsInLog {
-				for _, project := range tc.expectedProjects {
-					if !strings.Contains(logOutput, project) {
-						t.Errorf("expected project %q in log output, got: %s", project, logOutput)
-					}
-				}
-
-				if !strings.Contains(logOutput, `"count"`) {
-					t.Error("expected 'count' field in log output")
-				}
-
-				if !strings.Contains(logOutput, `"projects"`) {
-					t.Error("expected 'projects' field in log output")
-				}
 			}
 		})
 	}

@@ -128,6 +128,31 @@ func TestProjectConfigService_GetProjectConfig(t *testing.T) {
 				AllowedChannels: []string{"logger"},
 			},
 		},
+		{
+			name: "GetProjectConfig_Project_With_VKTeams",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams", "logger"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project1",
+			expectedExists: true,
+			expectedConfig: &config.ProjectConfig{
+				AllowedChannels: []string{"vkteams", "logger"},
+				VKTeams: &config.ProjectVKTeamsConfig{
+					ChatID: "chat123",
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -161,6 +186,17 @@ func TestProjectConfigService_GetProjectConfig(t *testing.T) {
 				} else {
 					if projectConfig.Telegram != nil {
 						t.Error("expected no telegram config, got: not nil")
+					}
+				}
+				if tc.expectedConfig.VKTeams != nil {
+					if projectConfig.VKTeams == nil {
+						t.Error("expected vkteams config, got: nil")
+					} else if projectConfig.VKTeams.ChatID != tc.expectedConfig.VKTeams.ChatID {
+						t.Errorf("expected chat_id %q, got: %q", tc.expectedConfig.VKTeams.ChatID, projectConfig.VKTeams.ChatID)
+					}
+				} else {
+					if projectConfig.VKTeams != nil {
+						t.Error("expected no vkteams config, got: not nil")
 					}
 				}
 			} else {
@@ -313,6 +349,44 @@ func TestProjectConfigService_GetAllowedChannels(t *testing.T) {
 			},
 			projectName:      "project1",
 			expectedChannels: []string{"telegram"},
+		},
+		{
+			name: "GetAllowedChannels_Project_With_VKTeams_Only",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:      "project1",
+			expectedChannels: []string{"vkteams"},
+		},
+		{
+			name: "GetAllowedChannels_Project_With_VKTeams_And_Logger",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams", "logger"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:      "project1",
+			expectedChannels: []string{"vkteams", "logger"},
 		},
 	}
 
@@ -467,6 +541,131 @@ func TestProjectConfigService_GetTelegramChatID(t *testing.T) {
 	}
 }
 
+func TestProjectConfigService_GetVKTeamsChatID(t *testing.T) {
+	type testCase struct {
+		name           string
+		cfg            *config.Config
+		projectName    string
+		expectedChatID string
+		expectedExists bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "GetVKTeamsChatID_Project_With_VKTeams",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams", "logger"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project1",
+			expectedChatID: "chat123",
+			expectedExists: true,
+		},
+		{
+			name: "GetVKTeamsChatID_Project_Not_Exists",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project2",
+			expectedChatID: "",
+			expectedExists: false,
+		},
+		{
+			name: "GetVKTeamsChatID_Project_Without_VKTeams_Channel",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"logger"},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project1",
+			expectedChatID: "",
+			expectedExists: false,
+		},
+		{
+			name: "GetVKTeamsChatID_Project_With_VKTeams_But_No_Config",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project1",
+			expectedChatID: "",
+			expectedExists: false,
+		},
+		{
+			name: "GetVKTeamsChatID_Project_With_VKTeams_But_Empty_ChatID",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "project1",
+			expectedChatID: "",
+			expectedExists: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := logrus.New()
+			logger.SetLevel(logrus.WarnLevel)
+			service := NewProjectConfigService(tc.cfg, logger)
+
+			chatID, exists := service.GetVKTeamsChatID(tc.projectName)
+
+			if exists != tc.expectedExists {
+				t.Errorf("expected exists %v, got: %v", tc.expectedExists, exists)
+			}
+
+			if chatID != tc.expectedChatID {
+				t.Errorf("expected chat_id %q, got: %q", tc.expectedChatID, chatID)
+			}
+		})
+	}
+}
+
 func TestProjectConfigService_Integration(t *testing.T) {
 	type testCase struct {
 		name        string
@@ -538,6 +737,24 @@ func TestProjectConfigService_Integration(t *testing.T) {
 					t.Error("expected non-empty chat_id")
 				}
 			}
+
+			vkteamsChatID, hasVKTeamsChatID := service.GetVKTeamsChatID(tc.projectName)
+			hasVKTeams := false
+			for _, ch := range channels {
+				if ch == "vkteams" {
+					hasVKTeams = true
+					break
+				}
+			}
+
+			if hasVKTeams {
+				if !hasVKTeamsChatID {
+					t.Error("expected chat_id for vkteams channel")
+				}
+				if vkteamsChatID == "" {
+					t.Error("expected non-empty vkteams chat_id")
+				}
+			}
 		})
 	}
 }
@@ -604,6 +821,7 @@ func TestProjectConfigService_EdgeCases(t *testing.T) {
 			_, _ = service.GetProjectConfig(tc.projectName)
 			_ = service.GetAllowedChannels(tc.projectName)
 			_, _ = service.GetTelegramChatID(tc.projectName)
+			_, _ = service.GetVKTeamsChatID(tc.projectName)
 		})
 	}
 }
@@ -684,6 +902,25 @@ func TestProjectConfigService_CaseInsensitive(t *testing.T) {
 			projectName:    "PROJECT1",
 			expectedExists: true,
 		},
+		{
+			name: "GetProjectConfig_Case_Insensitive_With_VKTeams",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &config.ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			projectName:    "PROJECT1",
+			expectedExists: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -724,6 +961,19 @@ func TestProjectConfigService_CaseInsensitive(t *testing.T) {
 					chatID, ok := service.GetTelegramChatID(tc.projectName)
 					if !ok || chatID == "" {
 						t.Error("expected telegram chat_id, got: empty")
+					}
+				}
+				hasVKTeams := false
+				for _, ch := range projectConfig.AllowedChannels {
+					if ch == "vkteams" {
+						hasVKTeams = true
+						break
+					}
+				}
+				if hasVKTeams {
+					chatID, ok := service.GetVKTeamsChatID(tc.projectName)
+					if !ok || chatID == "" {
+						t.Error("expected vkteams chat_id, got: empty")
 					}
 				}
 			}

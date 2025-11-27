@@ -57,6 +57,9 @@ type YoutrackParser interface {
 	// GetTelegramChatID возвращает chat_id для Telegram канала проекта
 	// Возвращает chat_id и true, если проект разрешен и имеет Telegram конфигурацию, иначе пустую строку и false
 	GetTelegramChatID(projectName string) (string, bool)
+	// GetVKTeamsChatID возвращает chat_id для VK Teams канала проекта
+	// Возвращает chat_id и true, если проект разрешен и имеет VK Teams конфигурацию, иначе пустую строку и false
+	GetVKTeamsChatID(projectName string) (string, bool)
 }
 
 // YoutrackFormatter определяет порт для форматирования YouTrack payload для различных каналов

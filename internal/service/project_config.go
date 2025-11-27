@@ -100,3 +100,39 @@ func (s *ProjectConfigServiceImpl) GetTelegramChatID(projectName string) (string
 
 	return projectConfig.Telegram.ChatID, true
 }
+
+// GetVKTeamsChatID получает chat_id для VK Teams канала проекта
+func (s *ProjectConfigServiceImpl) GetVKTeamsChatID(projectName string) (string, bool) {
+	projectConfig, exists := s.GetProjectConfig(projectName)
+	if !exists {
+		return "", false
+	}
+
+	hasVKTeams := false
+	for _, channel := range projectConfig.AllowedChannels {
+		if channel == "vkteams" {
+			hasVKTeams = true
+			break
+		}
+	}
+
+	if !hasVKTeams {
+		return "", false
+	}
+
+	if projectConfig.VKTeams == nil {
+		s.logger.WithFields(logrus.Fields{
+			"project": projectName,
+		}).Warn("VK Teams channel is in allowedChannels but vkteams config is missing")
+		return "", false
+	}
+
+	if projectConfig.VKTeams.ChatID == "" {
+		s.logger.WithFields(logrus.Fields{
+			"project": projectName,
+		}).Warn("VK Teams channel is in allowedChannels but chat_id is empty")
+		return "", false
+	}
+
+	return projectConfig.VKTeams.ChatID, true
+}

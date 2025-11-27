@@ -12,4 +12,6 @@ type ProjectConfigService interface {
 	GetAllowedChannels(projectName string) []string
 	// GetTelegramChatID получение chat_id для проекта
 	GetTelegramChatID(projectName string) (string, bool)
+	// GetVKTeamsChatID получение chat_id для VK Teams канала проекта
+	GetVKTeamsChatID(projectName string) (string, bool)
 }

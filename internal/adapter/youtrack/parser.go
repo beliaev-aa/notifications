@@ -55,3 +55,8 @@ func (p *Parser) GetAllowedChannels(payload *parser.YoutrackWebhookPayload) []st
 func (p *Parser) GetTelegramChatID(projectName string) (string, bool) {
 	return p.projectConfigService.GetTelegramChatID(strings.ToLower(projectName))
 }
+
+// GetVKTeamsChatID возвращает chat_id для VK Teams канала проекта
+func (p *Parser) GetVKTeamsChatID(projectName string) (string, bool) {
+	return p.projectConfigService.GetVKTeamsChatID(strings.ToLower(projectName))
+}

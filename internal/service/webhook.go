@@ -80,13 +80,15 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 
 	// Регистрируем специальное форматирование для Telegram канала
 	youtrackFormatter.RegisterChannelFormatter(port.ChannelTelegram, formatter.FormatTelegram)
+	// Регистрируем форматирование для VK Teams канала (с измененным блоком "Упомянуты:")
+	youtrackFormatter.RegisterChannelFormatter(port.ChannelVKTeams, formatter.FormatVKTeams)
 
 	// Отправляем уведомление через все выбранные каналы
 	for _, channel := range channels {
 		// Форматируем уведомление для конкретного канала
 		formattedMessage := youtrackFormatter.Format(payload, channel)
 
-		// Получаем chatID для Telegram канала
+		// Получаем chatID для каналов, которые требуют его
 		chatID := ""
 		if channel == port.ChannelTelegram {
 			var ok bool
@@ -96,6 +98,16 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 					"project": projectName,
 					"channel": channel,
 				}).Warn("Telegram chat ID not found for project, skipping notification")
+				continue
+			}
+		} else if channel == port.ChannelVKTeams {
+			var ok bool
+			chatID, ok = w.youtrackParser.GetVKTeamsChatID(projectName)
+			if !ok || chatID == "" {
+				w.logger.WithFields(logrus.Fields{
+					"project": projectName,
+					"channel": channel,
+				}).Warn("VK Teams chat ID not found for project, skipping notification")
 				continue
 			}
 		}

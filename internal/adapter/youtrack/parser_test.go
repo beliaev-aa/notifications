@@ -740,3 +740,130 @@ func TestParser_GetTelegramChatID_CaseInsensitive(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_GetVKTeamsChatID(t *testing.T) {
+	type testCase struct {
+		name              string
+		projectName       string
+		chatID            string
+		hasChatID         bool
+		expectedChatID    string
+		expectedHasChatID bool
+	}
+
+	testCases := []testCase{
+		{
+			name:              "GetVKTeamsChatID_Project_With_VKTeams",
+			projectName:       "TestProject",
+			chatID:            "test_chat_id",
+			hasChatID:         true,
+			expectedChatID:    "test_chat_id",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetVKTeamsChatID_Project_Without_VKTeams",
+			projectName:       "TestProject",
+			chatID:            "",
+			hasChatID:         false,
+			expectedChatID:    "",
+			expectedHasChatID: false,
+		},
+		{
+			name:              "GetVKTeamsChatID_Non_Existent_Project",
+			projectName:       "NonExistentProject",
+			chatID:            "",
+			hasChatID:         false,
+			expectedChatID:    "",
+			expectedHasChatID: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			normalizedName := strings.ToLower(tc.projectName)
+			mockProjectConfig.EXPECT().GetVKTeamsChatID(normalizedName).Return(tc.chatID, tc.hasChatID)
+
+			p := NewParser(mockProjectConfig)
+
+			chatID, hasChatID := p.GetVKTeamsChatID(tc.projectName)
+
+			if chatID != tc.expectedChatID {
+				t.Errorf("expected chatID %q, got: %q", tc.expectedChatID, chatID)
+			}
+
+			if hasChatID != tc.expectedHasChatID {
+				t.Errorf("expected hasChatID %v, got: %v", tc.expectedHasChatID, hasChatID)
+			}
+		})
+	}
+}
+
+func TestParser_GetVKTeamsChatID_CaseInsensitive(t *testing.T) {
+	type testCase struct {
+		name              string
+		projectName       string
+		projectNameCase   string
+		chatID            string
+		hasChatID         bool
+		expectedChatID    string
+		expectedHasChatID bool
+	}
+
+	testCases := []testCase{
+		{
+			name:              "GetVKTeamsChatID_Uppercase_Project_Name",
+			projectName:       "project1",
+			projectNameCase:   "PROJECT1",
+			chatID:            "123456789",
+			hasChatID:         true,
+			expectedChatID:    "123456789",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetVKTeamsChatID_Mixed_Case_Project_Name",
+			projectName:       "project1",
+			projectNameCase:   "Project1",
+			chatID:            "987654321",
+			hasChatID:         true,
+			expectedChatID:    "987654321",
+			expectedHasChatID: true,
+		},
+		{
+			name:              "GetVKTeamsChatID_Lowercase_Project_Name",
+			projectName:       "PROJECT1",
+			projectNameCase:   "project1",
+			chatID:            "111222333",
+			hasChatID:         true,
+			expectedChatID:    "111222333",
+			expectedHasChatID: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+
+			normalizedName := strings.ToLower(tc.projectNameCase)
+			mockProjectConfig.EXPECT().GetVKTeamsChatID(normalizedName).Return(tc.chatID, tc.hasChatID)
+
+			p := NewParser(mockProjectConfig)
+
+			chatID, hasChatID := p.GetVKTeamsChatID(tc.projectNameCase)
+
+			if chatID != tc.expectedChatID {
+				t.Errorf("expected chatID %q, got: %q", tc.expectedChatID, chatID)
+			}
+
+			if hasChatID != tc.expectedHasChatID {
+				t.Errorf("expected hasChatID %v, got: %v", tc.expectedHasChatID, hasChatID)
+			}
+		})
+	}
+}

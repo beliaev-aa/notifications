@@ -78,6 +78,21 @@ func (mr *MockProjectConfigServiceMockRecorder) GetTelegramChatID(projectName in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramChatID", reflect.TypeOf((*MockProjectConfigService)(nil).GetTelegramChatID), projectName)
 }
 
+// GetVKTeamsChatID mocks base method.
+func (m *MockProjectConfigService) GetVKTeamsChatID(projectName string) (string, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVKTeamsChatID", projectName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetVKTeamsChatID indicates an expected call of GetVKTeamsChatID.
+func (mr *MockProjectConfigServiceMockRecorder) GetVKTeamsChatID(projectName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVKTeamsChatID", reflect.TypeOf((*MockProjectConfigService)(nil).GetVKTeamsChatID), projectName)
+}
+
 // IsProjectAllowed mocks base method.
 func (m *MockProjectConfigService) IsProjectAllowed(projectName string) bool {
 	m.ctrl.T.Helper()

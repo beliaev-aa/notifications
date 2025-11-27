@@ -63,6 +63,21 @@ func (mr *MockYoutrackParserMockRecorder) GetTelegramChatID(projectName interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramChatID", reflect.TypeOf((*MockYoutrackParser)(nil).GetTelegramChatID), projectName)
 }
 
+// GetVKTeamsChatID mocks base method.
+func (m *MockYoutrackParser) GetVKTeamsChatID(projectName string) (string, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVKTeamsChatID", projectName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetVKTeamsChatID indicates an expected call of GetVKTeamsChatID.
+func (mr *MockYoutrackParserMockRecorder) GetVKTeamsChatID(projectName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVKTeamsChatID", reflect.TypeOf((*MockYoutrackParser)(nil).GetVKTeamsChatID), projectName)
+}
+
 // NewFormatter mocks base method.
 func (m *MockYoutrackParser) NewFormatter() parser.YoutrackFormatter {
 	m.ctrl.T.Helper()

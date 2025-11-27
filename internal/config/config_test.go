@@ -29,6 +29,9 @@ func TestLoadConfig(t *testing.T) {
 				"HTTP_WRITE_TIMEOUT":    "20",
 				"TELEGRAM_BOT_TOKEN":    "env_token",
 				"TELEGRAM_TIMEOUT":      "30",
+				"VKTEAMS_BOT_TOKEN":     "env_vkteams_token",
+				"VKTEAMS_TIMEOUT":       "25",
+				"VKTEAMS_API_URL":       "https://api.env.example.com/bot/v1",
 				"LOG_LEVEL":             "info",
 			},
 			yamlContent: `
@@ -53,6 +56,11 @@ logger:
 				Telegram: TelegramConfig{
 					BotToken: "env_token",
 					Timeout:  30,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "env_vkteams_token",
+					Timeout:  25,
+					ApiUrl:   "https://api.env.example.com/bot/v1",
 				},
 				Logger: LoggerConfig{
 					Level: "info",
@@ -90,6 +98,10 @@ logger:
 					BotToken: "",
 					Timeout:  10,
 				},
+				VKTeams: VKTeamsConfig{
+					Timeout: 10,
+					ApiUrl:  "",
+				},
 				Logger: LoggerConfig{
 					Level: "debug",
 				},
@@ -118,6 +130,10 @@ logger:
 				Telegram: TelegramConfig{
 					Timeout: 10,
 				},
+				VKTeams: VKTeamsConfig{
+					Timeout: 10,
+					ApiUrl:  "",
+				},
 				Notifications: NotificationsConfig{
 					Youtrack: YoutrackConfig{
 						Projects: make(map[string]ProjectConfig),
@@ -143,6 +159,10 @@ logger:
 				},
 				Telegram: TelegramConfig{
 					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout: 10,
+					ApiUrl:  "",
 				},
 				Logger: LoggerConfig{
 					Level: "warn",
@@ -192,6 +212,10 @@ notifications:
 				Telegram: TelegramConfig{
 					BotToken: "token123",
 					Timeout:  10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout: 10,
+					ApiUrl:  "",
 				},
 				Notifications: NotificationsConfig{
 					Youtrack: YoutrackConfig{
@@ -309,6 +333,85 @@ notifications:
 `,
 			expectedConfig: nil,
 			expectedErr:    errors.New("TELEGRAM_BOT_TOKEN is required"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_VKTeams_But_No_ChatID",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"VKTEAMS_BOT_TOKEN":     "token123",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+vkteams:
+  bot_token: "token123"
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [vkteams]
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("vkteams.chat_id is required"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_VKTeams_But_Empty_ChatID",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"VKTEAMS_BOT_TOKEN":     "token123",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+vkteams:
+  bot_token: "token123"
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [vkteams]
+        vkteams:
+          chat_id: ""
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("vkteams.chat_id cannot be empty"),
+		},
+		{
+			name: "Config_Validation_Error_If_Project_Has_VKTeams_But_No_BotToken",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+			},
+			yamlContent: `
+http:
+  addr: ":3000"
+  shutdown_timeout: 5
+  read_timeout: 5
+  write_timeout: 5
+notifications:
+  youtrack:
+    projects:
+      project1:
+        allowedChannels: [vkteams]
+        vkteams:
+          chat_id: "chat123"
+`,
+			expectedConfig: nil,
+			expectedErr:    errors.New("VKTEAMS_BOT_TOKEN is required"),
 		},
 		{
 			name: "Config_Validation_Error_If_Project_Has_Invalid_Channel",
@@ -447,6 +550,30 @@ notifications:
 			expectedErr:    errors.New("TELEGRAM_TIMEOUT must be positive"),
 		},
 		{
+			name: "Invalid_VKTeamsTimeout_Format_Returns_Error",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"VKTEAMS_TIMEOUT":       "invalid",
+			},
+			expectedConfig: nil,
+			expectedErr:    errors.New("invalid VKTEAMS_TIMEOUT format"),
+		},
+		{
+			name: "Negative_VKTeamsTimeout_Returns_Error",
+			envVariables: map[string]string{
+				"HTTP_ADDR":             ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT": "5",
+				"HTTP_READ_TIMEOUT":     "5",
+				"HTTP_WRITE_TIMEOUT":    "5",
+				"VKTEAMS_TIMEOUT":       "-5",
+			},
+			expectedConfig: nil,
+			expectedErr:    errors.New("VKTEAMS_TIMEOUT must be positive"),
+		},
+		{
 			name: "Invalid_YAML_Content_Returns_Error",
 			envVariables: map[string]string{
 				"HTTP_ADDR":             ":8080",
@@ -490,6 +617,10 @@ logger:
 				},
 				Telegram: TelegramConfig{
 					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout: 10,
+					ApiUrl:  "",
 				},
 				Logger: LoggerConfig{
 					Level: "error",
@@ -642,6 +773,52 @@ func TestValidateConfig(t *testing.T) {
 				Telegram: TelegramConfig{
 					BotToken: "token123",
 					Timeout:  10,
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Valid_Config_With_VKTeams",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					Timeout:  10,
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Valid_Config_With_VKTeams_Project",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					Timeout:  10,
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams", "logger"},
+								VKTeams: &ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedErr: nil,
@@ -857,6 +1034,128 @@ func TestValidateConfig(t *testing.T) {
 			},
 			expectedErr: nil,
 		},
+		{
+			name: "VKTeams_Timeout_Default_Value_Set",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					Timeout:  0,
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "Project_With_VKTeams_But_No_ChatID",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("vkteams.chat_id is required"),
+		},
+		{
+			name: "Project_With_VKTeams_But_Empty_ChatID",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					ApiUrl:   "https://api.example.com/bot/v1",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &ProjectVKTeamsConfig{
+									ChatID: "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("vkteams.chat_id cannot be empty"),
+		},
+		{
+			name: "Project_With_VKTeams_But_No_BotToken",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("VKTEAMS_BOT_TOKEN is required"),
+		},
+		{
+			name: "Project_With_VKTeams_But_No_APIURL",
+			config: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				VKTeams: VKTeamsConfig{
+					BotToken: "token123",
+					ApiUrl:   "",
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: map[string]ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"vkteams"},
+								VKTeams: &ProjectVKTeamsConfig{
+									ChatID: "chat123",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errors.New("VKTEAMS_API_URL is required"),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -875,6 +1174,9 @@ func TestValidateConfig(t *testing.T) {
 				}
 				if tc.name == "Telegram_Timeout_Default_Value_Set" && tc.config.Telegram.Timeout != 10 {
 					t.Errorf("expected Telegram.Timeout to be set to 10, got: %d", tc.config.Telegram.Timeout)
+				}
+				if tc.name == "VKTeams_Timeout_Default_Value_Set" && tc.config.VKTeams.Timeout != 10 {
+					t.Errorf("expected VKTeams.Timeout to be set to 10, got: %d", tc.config.VKTeams.Timeout)
 				}
 			}
 		})

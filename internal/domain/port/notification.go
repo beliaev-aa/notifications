@@ -5,6 +5,8 @@ const (
 	ChannelLogger = "logger"
 	// ChannelTelegram название канала Telegram
 	ChannelTelegram = "telegram"
+	// ChannelVKTeams название канала VK Teams
+	ChannelVKTeams = "vkteams"
 )
 
 // NotificationChannel определяет порт для отправки уведомлений через конкретный канал

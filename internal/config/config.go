@@ -23,6 +23,7 @@ const (
 type Config struct {
 	HTTP          HTTPConfig          `yaml:"http"`
 	Telegram      TelegramConfig      `yaml:"telegram"`
+	VKTeams       VKTeamsConfig       `yaml:"vkteams"`
 	Logger        LoggerConfig        `yaml:"logger"`
 	Notifications NotificationsConfig `yaml:"notifications"`
 }
@@ -40,6 +41,14 @@ type HTTPConfig struct {
 type TelegramConfig struct {
 	BotToken string `yaml:"bot_token"` // Глобальный токен бота
 	Timeout  int    `yaml:"timeout"`   // Таймаут для HTTP запросов к Telegram API (секунды)
+}
+
+// VKTeamsConfig содержит глобальную конфигурацию для VK Teams канала
+// BotToken, Timeout и ApiUrl используются для всех проектов
+type VKTeamsConfig struct {
+	BotToken string `yaml:"bot_token"` // Глобальный токен бота
+	Timeout  int    `yaml:"timeout"`   // Таймаут для HTTP запросов к VK Teams API (секунды)
+	ApiUrl   string `yaml:"api_url"`   // URL API (обязателен)
 }
 
 // LoggerConfig содержит конфигурацию для логгера
@@ -62,10 +71,16 @@ type ProjectConfig struct {
 	// Доступные каналы для уведомлений в проекте
 	AllowedChannels []string               `yaml:"allowedChannels"`
 	Telegram        *ProjectTelegramConfig `yaml:"telegram,omitempty"` // Обязательно, если telegram в allowedChannels
+	VKTeams         *ProjectVKTeamsConfig  `yaml:"vkteams,omitempty"`  // Обязательно, если vkteams в allowedChannels
 }
 
 // ProjectTelegramConfig настройки для Telegram
 type ProjectTelegramConfig struct {
+	ChatID string `yaml:"chat_id"` // Обязательное поле для каждого проекта
+}
+
+// ProjectVKTeamsConfig настройки для VK Teams
+type ProjectVKTeamsConfig struct {
 	ChatID string `yaml:"chat_id"` // Обязательное поле для каждого проекта
 }
 
@@ -187,6 +202,29 @@ func loadFromEnv(cfg *Config) error {
 		cfg.Telegram.Timeout = seconds
 	}
 
+	// VK Teams
+	// BotToken
+	if val := os.Getenv("VKTEAMS_BOT_TOKEN"); val != "" {
+		cfg.VKTeams.BotToken = val
+	}
+
+	// Timeout (значение в секундах, целое число)
+	if val := os.Getenv("VKTEAMS_TIMEOUT"); val != "" {
+		seconds, err := strconv.Atoi(val)
+		if err != nil {
+			return fmt.Errorf("invalid VKTEAMS_TIMEOUT format: must be integer (seconds), got: %s", val)
+		}
+		if seconds <= 0 {
+			return fmt.Errorf("VKTEAMS_TIMEOUT must be positive, got: %d", seconds)
+		}
+		cfg.VKTeams.Timeout = seconds
+	}
+
+	// ApiUrl
+	if val := os.Getenv("VKTEAMS_API_URL"); val != "" {
+		cfg.VKTeams.ApiUrl = val
+	}
+
 	// Logger.Level
 	if val := os.Getenv("LOG_LEVEL"); val != "" {
 		cfg.Logger.Level = val
@@ -246,6 +284,11 @@ func validateConfig(cfg *Config) error {
 		cfg.Telegram.Timeout = 10
 	}
 
+	// Устанавливаем значения по умолчанию для VK Teams, если не заданы
+	if cfg.VKTeams.Timeout <= 0 {
+		cfg.VKTeams.Timeout = 10
+	}
+
 	// Валидация конфигурации проектов
 	if err := validateNotificationsConfig(cfg); err != nil {
 		return err
@@ -270,16 +313,21 @@ func validateNotificationsConfig(cfg *Config) error {
 		// Проверяем валидность каналов
 		validChannels := map[string]bool{
 			"telegram": true,
+			"vkteams":  true,
 			"logger":   true,
 		}
 
 		hasTelegram := false
+		hasVKTeams := false
 		for _, channel := range projectConfig.AllowedChannels {
 			if !validChannels[channel] {
-				return fmt.Errorf("project %q: invalid channel %q, allowed channels: telegram, logger", projectName, channel)
+				return fmt.Errorf("project %q: invalid channel %q, allowed channels: telegram, vkteams, logger", projectName, channel)
 			}
 			if channel == "telegram" {
 				hasTelegram = true
+			}
+			if channel == "vkteams" {
+				hasVKTeams = true
 			}
 		}
 
@@ -294,6 +342,24 @@ func validateNotificationsConfig(cfg *Config) error {
 			// Проверяем, что глобальный bot_token указан
 			if cfg.Telegram.BotToken == "" {
 				return fmt.Errorf("TELEGRAM_BOT_TOKEN is required when telegram is used in project configurations")
+			}
+		}
+
+		// Если vkteams в allowedChannels, проверяем наличие vkteams.chat_id
+		if hasVKTeams {
+			if projectConfig.VKTeams == nil {
+				return fmt.Errorf("project %q: vkteams.chat_id is required when vkteams is in allowedChannels", projectName)
+			}
+			if projectConfig.VKTeams.ChatID == "" {
+				return fmt.Errorf("project %q: vkteams.chat_id cannot be empty when vkteams is in allowedChannels", projectName)
+			}
+			// Проверяем, что глобальный bot_token указан
+			if cfg.VKTeams.BotToken == "" {
+				return fmt.Errorf("VKTEAMS_BOT_TOKEN is required when vkteams is used in project configurations")
+			}
+			// Проверяем, что глобальный api_url указан
+			if cfg.VKTeams.ApiUrl == "" {
+				return fmt.Errorf("VKTEAMS_API_URL is required when vkteams is used in project configurations")
 			}
 		}
 	}

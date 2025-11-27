@@ -81,6 +81,8 @@ func TestProcessWebhook(t *testing.T) {
 		allowedChannels   []string
 		telegramChatID    string
 		hasTelegramChatID bool
+		vkteamsChatID     string
+		hasVKTeamsChatID  bool
 		sendError         error
 		expectedError     bool
 		expectedErrorMsg  string
@@ -241,6 +243,86 @@ func TestProcessWebhook(t *testing.T) {
 			checkLogging:      true,
 			verifySendCalls:   true,
 		},
+		{
+			name:             "VKTeams_Chat_ID_Not_Found_Skips_VKTeams_But_Sends_To_Other_Channels",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			projectName:      "TestProject",
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelVKTeams, port.ChannelLogger},
+			vkteamsChatID:    "",
+			hasVKTeamsChatID: false,
+			expectedError:    false,
+			checkLogging:     true,
+			verifySendCalls:  true,
+		},
+		{
+			name:             "VKTeams_Chat_ID_Empty_String_Skips_VKTeams",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			projectName:      "TestProject",
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelVKTeams, port.ChannelLogger},
+			vkteamsChatID:    "",
+			hasVKTeamsChatID: true,
+			expectedError:    false,
+			checkLogging:     true,
+			verifySendCalls:  true,
+		},
+		{
+			name:             "VKTeams_Chat_ID_Not_Found_Only_VKTeams_Channel",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			projectName:      "TestProject",
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelVKTeams},
+			vkteamsChatID:    "",
+			hasVKTeamsChatID: false,
+			expectedError:    false,
+			checkLogging:     true,
+			verifySendCalls:  true,
+		},
+		{
+			name:             "Project_With_VKTeams_Channel",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			projectName:      "TestProject",
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelVKTeams, port.ChannelLogger},
+			vkteamsChatID:    "test_vkteams_chat_id",
+			hasVKTeamsChatID: true,
+			expectedError:    false,
+			checkLogging:     true,
+			verifySendCalls:  true,
+		},
+		{
+			name:             "Project_With_Only_VKTeams_Channel",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			projectName:      "TestProject",
+			projectAllowed:   true,
+			allowedChannels:  []string{port.ChannelVKTeams},
+			vkteamsChatID:    "test_vkteams_chat_id",
+			hasVKTeamsChatID: true,
+			expectedError:    false,
+			checkLogging:     true,
+			verifySendCalls:  true,
+		},
+		{
+			name:              "Project_With_Both_Telegram_And_VKTeams",
+			requestBody:       validJSON,
+			parseJSONPayload:  validPayload,
+			projectName:       "TestProject",
+			projectAllowed:    true,
+			allowedChannels:   []string{port.ChannelTelegram, port.ChannelVKTeams, port.ChannelLogger},
+			telegramChatID:    "test_telegram_chat_id",
+			hasTelegramChatID: true,
+			vkteamsChatID:     "test_vkteams_chat_id",
+			hasVKTeamsChatID:  true,
+			expectedError:     false,
+			checkLogging:      true,
+			verifySendCalls:   true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -289,6 +371,7 @@ func TestProcessWebhook(t *testing.T) {
 					if tc.verifySendCalls && len(tc.allowedChannels) > 0 {
 						mockParser.EXPECT().NewFormatter().Return(mockFormatter)
 						mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelTelegram, gomock.Any())
+						mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelVKTeams, gomock.Any())
 
 						projectName := ""
 						if tc.parseJSONPayload != nil && tc.parseJSONPayload.Project != nil && tc.parseJSONPayload.Project.Name != nil {
@@ -302,19 +385,28 @@ func TestProcessWebhook(t *testing.T) {
 							mockFormatter.EXPECT().Format(tc.parseJSONPayload, channel).Return("formatted for " + channel)
 
 							chatID := ""
-							shouldSkipTelegram := false
+							shouldSkip := false
 							if channel == port.ChannelTelegram {
 								if projectName != "" {
 									mockParser.EXPECT().GetTelegramChatID(projectName).Return(tc.telegramChatID, tc.hasTelegramChatID)
 								}
 								if !tc.hasTelegramChatID || tc.telegramChatID == "" {
-									shouldSkipTelegram = true
+									shouldSkip = true
 								} else {
 									chatID = tc.telegramChatID
 								}
+							} else if channel == port.ChannelVKTeams {
+								if projectName != "" {
+									mockParser.EXPECT().GetVKTeamsChatID(projectName).Return(tc.vkteamsChatID, tc.hasVKTeamsChatID)
+								}
+								if !tc.hasVKTeamsChatID || tc.vkteamsChatID == "" {
+									shouldSkip = true
+								} else {
+									chatID = tc.vkteamsChatID
+								}
 							}
 
-							if shouldSkipTelegram {
+							if shouldSkip {
 								continue
 							}
 
@@ -367,6 +459,11 @@ func TestProcessWebhook(t *testing.T) {
 							t.Error("expected log message about Telegram chat ID not found")
 						}
 					}
+					if strings.Contains(tc.name, "VKTeams_Chat_ID_Not_Found") || strings.Contains(tc.name, "VKTeams_Chat_ID_Empty") {
+						if !strings.Contains(logOutput, "VK Teams chat ID not found for project") && !strings.Contains(logOutput, "skipping notification") {
+							t.Error("expected log message about VK Teams chat ID not found")
+						}
+					}
 				}
 			}
 		})
@@ -398,6 +495,20 @@ func TestProcessWebhook_Integration(t *testing.T) {
 			requestBody:      validJSON,
 			parseJSONPayload: validPayload,
 			expectedChannels: []string{port.ChannelLogger, port.ChannelTelegram},
+			checkFormatter:   true,
+		},
+		{
+			name:             "Full_Integration_Test_With_VKTeams",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			expectedChannels: []string{port.ChannelLogger, port.ChannelVKTeams},
+			checkFormatter:   true,
+		},
+		{
+			name:             "Full_Integration_Test_With_Both_Telegram_And_VKTeams",
+			requestBody:      validJSON,
+			parseJSONPayload: validPayload,
+			expectedChannels: []string{port.ChannelLogger, port.ChannelTelegram, port.ChannelVKTeams},
 			checkFormatter:   true,
 		},
 	}
@@ -438,24 +549,45 @@ func TestProcessWebhook_Integration(t *testing.T) {
 
 			mockParser.EXPECT().NewFormatter().Return(mockFormatter)
 			mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelTelegram, gomock.Any())
+			mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelVKTeams, gomock.Any())
 
-			mockFormatter.EXPECT().Format(tc.parseJSONPayload, port.ChannelLogger).Return("formatted for logger")
-			mockFormatter.EXPECT().Format(tc.parseJSONPayload, port.ChannelTelegram).Return("formatted for telegram")
+			hasTelegram := false
+			hasVKTeams := false
+			for _, ch := range tc.expectedChannels {
+				if ch == port.ChannelTelegram {
+					hasTelegram = true
+				}
+				if ch == port.ChannelVKTeams {
+					hasVKTeams = true
+				}
+			}
 
-			mockParser.EXPECT().GetTelegramChatID(projectName).Return("test_chat_id", true)
+			for _, channel := range tc.expectedChannels {
+				mockFormatter.EXPECT().Format(tc.parseJSONPayload, channel).Return("formatted for " + channel)
+			}
 
-			mockSender.EXPECT().Send(port.ChannelLogger, "", gomock.Any()).
-				Do(func(channel string, chatID string, message string) {
-					receivedChannels = append(receivedChannels, channel)
-					receivedMessages = append(receivedMessages, message)
-				}).
-				Return(nil)
-			mockSender.EXPECT().Send(port.ChannelTelegram, "test_chat_id", gomock.Any()).
-				Do(func(channel string, chatID string, message string) {
-					receivedChannels = append(receivedChannels, channel)
-					receivedMessages = append(receivedMessages, message)
-				}).
-				Return(nil)
+			if hasTelegram {
+				mockParser.EXPECT().GetTelegramChatID(projectName).Return("test_chat_id", true)
+			}
+			if hasVKTeams {
+				mockParser.EXPECT().GetVKTeamsChatID(projectName).Return("test_vkteams_chat_id", true)
+			}
+
+			for _, channel := range tc.expectedChannels {
+				chatID := ""
+				if channel == port.ChannelTelegram {
+					chatID = "test_chat_id"
+				} else if channel == port.ChannelVKTeams {
+					chatID = "test_vkteams_chat_id"
+				}
+
+				mockSender.EXPECT().Send(channel, chatID, gomock.Any()).
+					Do(func(ch string, cID string, msg string) {
+						receivedChannels = append(receivedChannels, ch)
+						receivedMessages = append(receivedMessages, msg)
+					}).
+					Return(nil)
+			}
 
 			service := &WebhookService{
 				notificationSender: mockSender,
@@ -476,7 +608,10 @@ func TestProcessWebhook_Integration(t *testing.T) {
 				if len(receivedMessages) != len(tc.expectedChannels) {
 					t.Errorf("expected %d formatted messages, got: %d", len(tc.expectedChannels), len(receivedMessages))
 				}
-				expectedMessages := []string{"formatted for logger", "formatted for telegram"}
+				expectedMessages := make([]string, 0, len(tc.expectedChannels))
+				for _, ch := range tc.expectedChannels {
+					expectedMessages = append(expectedMessages, "formatted for "+ch)
+				}
 				if diff := cmp.Diff(expectedMessages, receivedMessages); diff != "" {
 					t.Errorf("Unexpected messages (-want +got):\n%s", diff)
 				}

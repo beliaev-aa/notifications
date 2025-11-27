@@ -20,6 +20,25 @@ type App struct {
 
 // NewApp создает новый экземпляр приложения с инициализированными зависимостями
 func NewApp(cfg *config.Config, logger *logrus.Logger) *App {
+	// Создаем и настраиваем отправитель уведомлений
+	notificationSender := setupNotificationSender(cfg, logger)
+
+	// Создаем сервис конфигурации проектов
+	projectConfigService := service.NewProjectConfigService(cfg, logger)
+
+	youtrackParser := youtrack.NewParser(projectConfigService)
+	webhookService := service.NewWebhookService(notificationSender, youtrackParser, logger)
+
+	// Создаем HTTP адаптер с зависимостью
+	httpServer := http.NewServer(&cfg.HTTP, webhookService, logger)
+
+	return &App{
+		httpServer: httpServer,
+	}
+}
+
+// setupNotificationSender создает и настраивает отправитель уведомлений с зарегистрированными каналами
+func setupNotificationSender(cfg *config.Config, logger *logrus.Logger) port.NotificationSender {
 	// Создаем отправитель уведомлений
 	notificationSender := notification.NewSender(logger)
 
@@ -35,32 +54,16 @@ func NewApp(cfg *config.Config, logger *logrus.Logger) *App {
 		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger, httpClient))
 	}
 
-	// Создаем сервис конфигурации проектов
-	projectConfigService := service.NewProjectConfigService(cfg, logger)
-
-	// Логируем загруженные проекты при старте
-	if cfg.Notifications.Youtrack.Projects != nil && len(cfg.Notifications.Youtrack.Projects) > 0 {
-		projects := make([]string, 0, len(cfg.Notifications.Youtrack.Projects))
-		for projectName := range cfg.Notifications.Youtrack.Projects {
-			projects = append(projects, projectName)
+	// Регистрируем VK Teams канал (используется для проектов с vkteams в allowedChannels)
+	// VK Teams канал создается только если указан bot_token
+	if cfg.VKTeams.BotToken != "" {
+		httpClient := &nethttp.Client{
+			Timeout: time.Duration(cfg.VKTeams.Timeout) * time.Second,
 		}
-		logger.WithFields(logrus.Fields{
-			"projects": projects,
-			"count":    len(projects),
-		}).Info("Loaded project configurations")
-	} else {
-		logger.Warn("No project configurations found in config file")
+		notificationSender.RegisterChannel(channel.NewVKTeamsChannel(cfg.VKTeams, logger, httpClient))
 	}
 
-	youtrackParser := youtrack.NewParser(projectConfigService)
-	webhookService := service.NewWebhookService(notificationSender, youtrackParser, logger)
-
-	// Создаем HTTP адаптер с зависимостью
-	httpServer := http.NewServer(&cfg.HTTP, webhookService, logger)
-
-	return &App{
-		httpServer: httpServer,
-	}
+	return notificationSender
 }
 
 // Run запускает приложение
