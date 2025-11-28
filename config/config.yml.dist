@@ -22,6 +22,7 @@ vkteams:
   bot_token: ""                             # Глобальный токен бота (обязателен, если используется VK Teams)
   timeout: 10                               # Таймаут для HTTP запросов к VK Teams API (секунды)
   api_url: ""                               # URL API VK Teams (обязателен, например: https://myteam.vkteams.ru/bot/v1)
+  insecure_skip_verify: false               # Игнорировать проверку SSL сертификата (не рекомендуется для production)
 
 # Логгер
 logger:

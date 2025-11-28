@@ -122,6 +122,7 @@ notifications:
 - `VKTEAMS_BOT_TOKEN` - токен VK Teams бота
 - `VKTEAMS_TIMEOUT` - таймаут для HTTP запросов к VK Teams API (секунды)
 - `VKTEAMS_API_URL` - URL API VK Teams (обязателен, например: https://api.vkteams.ru/bot/v1)
+- `VKTEAMS_INSECURE_SKIP_VERIFY` - игнорировать проверку SSL сертификата (только `true` или `false`)
 - `LOG_LEVEL` - уровень логирования (debug, info, warn, error)
 
 ## Настройка webhook в YouTrack

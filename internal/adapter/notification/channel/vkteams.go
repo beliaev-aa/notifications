@@ -36,6 +36,10 @@ func NewVKTeamsChannel(cfg config.VKTeamsConfig, logger *logrus.Logger, httpClie
 		logger.Error("VK Teams API URL is required, VK Teams channel will not work")
 	}
 
+	if cfg.InsecureSkipVerify {
+		logger.Warn("VK Teams: SSL certificate verification is disabled. This is not recommended for production!")
+	}
+
 	timeout := time.Duration(cfg.Timeout) * time.Second
 
 	apiURL := strings.TrimSuffix(cfg.ApiUrl, "/")

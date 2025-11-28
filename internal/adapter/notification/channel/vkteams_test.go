@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"errors"
 	"github.com/beliaev-aa/notifications/internal/config"
 	"github.com/beliaev-aa/notifications/internal/domain/port"
@@ -590,6 +591,154 @@ func TestVKTeamsChannel_EdgeCases(t *testing.T) {
 			} else {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestNewVKTeamsChannel_Logging(t *testing.T) {
+	type testCase struct {
+		name          string
+		cfg           config.VKTeamsConfig
+		expectedWarn  []string
+		expectedError []string
+		checkLogging  bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "Log_Warning_When_BotToken_Empty",
+			cfg: config.VKTeamsConfig{
+				BotToken: "",
+				Timeout:  10,
+				ApiUrl:   "https://api.example.com/bot/v1",
+			},
+			expectedWarn:  []string{"VK Teams bot token is empty, VK Teams channel will not work"},
+			expectedError: []string{},
+			checkLogging:  true,
+		},
+		{
+			name: "Log_Error_When_ApiUrl_Empty",
+			cfg: config.VKTeamsConfig{
+				BotToken: "test_token",
+				Timeout:  10,
+				ApiUrl:   "",
+			},
+			expectedWarn:  []string{},
+			expectedError: []string{"VK Teams API URL is required, VK Teams channel will not work"},
+			checkLogging:  true,
+		},
+		{
+			name: "Log_Warning_When_InsecureSkipVerify_True",
+			cfg: config.VKTeamsConfig{
+				BotToken:           "test_token",
+				Timeout:            10,
+				ApiUrl:             "https://api.example.com/bot/v1",
+				InsecureSkipVerify: true,
+			},
+			expectedWarn:  []string{"VK Teams: SSL certificate verification is disabled. This is not recommended for production!"},
+			expectedError: []string{},
+			checkLogging:  true,
+		},
+		{
+			name: "Log_Both_Warnings_When_BotToken_Empty_And_InsecureSkipVerify_True",
+			cfg: config.VKTeamsConfig{
+				BotToken:           "",
+				Timeout:            10,
+				ApiUrl:             "https://api.example.com/bot/v1",
+				InsecureSkipVerify: true,
+			},
+			expectedWarn: []string{
+				"VK Teams bot token is empty, VK Teams channel will not work",
+				"VK Teams: SSL certificate verification is disabled. This is not recommended for production!",
+			},
+			expectedError: []string{},
+			checkLogging:  true,
+		},
+		{
+			name: "Log_Error_And_Warning_When_ApiUrl_Empty_And_InsecureSkipVerify_True",
+			cfg: config.VKTeamsConfig{
+				BotToken:           "test_token",
+				Timeout:            10,
+				ApiUrl:             "",
+				InsecureSkipVerify: true,
+			},
+			expectedWarn: []string{
+				"VK Teams: SSL certificate verification is disabled. This is not recommended for production!",
+			},
+			expectedError: []string{"VK Teams API URL is required, VK Teams channel will not work"},
+			checkLogging:  true,
+		},
+		{
+			name: "Log_All_When_All_Conditions_Met",
+			cfg: config.VKTeamsConfig{
+				BotToken:           "",
+				Timeout:            10,
+				ApiUrl:             "",
+				InsecureSkipVerify: true,
+			},
+			expectedWarn: []string{
+				"VK Teams bot token is empty, VK Teams channel will not work",
+				"VK Teams: SSL certificate verification is disabled. This is not recommended for production!",
+			},
+			expectedError: []string{"VK Teams API URL is required, VK Teams channel will not work"},
+			checkLogging:  true,
+		},
+		{
+			name: "No_Logs_When_All_Valid",
+			cfg: config.VKTeamsConfig{
+				BotToken:           "test_token",
+				Timeout:            10,
+				ApiUrl:             "https://api.example.com/bot/v1",
+				InsecureSkipVerify: false,
+			},
+			expectedWarn:  []string{},
+			expectedError: []string{},
+			checkLogging:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := logrus.New()
+			logger.SetOutput(&buf)
+			logger.SetLevel(logrus.WarnLevel) // Устанавливаем уровень, чтобы видеть Warn и Error
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockHTTPClient := mocks.NewMockHTTPClient(ctrl)
+			channel := NewVKTeamsChannel(tc.cfg, logger, mockHTTPClient)
+
+			if channel == nil {
+				t.Error("expected channel to be created, got: nil")
+				return
+			}
+
+			if tc.checkLogging {
+				logOutput := buf.String()
+
+				// Проверяем предупреждения
+				for _, expectedWarn := range tc.expectedWarn {
+					if !strings.Contains(logOutput, expectedWarn) {
+						t.Errorf("expected warning message %q not found in log output: %s", expectedWarn, logOutput)
+					}
+				}
+
+				// Проверяем ошибки
+				for _, expectedError := range tc.expectedError {
+					if !strings.Contains(logOutput, expectedError) {
+						t.Errorf("expected error message %q not found in log output: %s", expectedError, logOutput)
+					}
+				}
+
+				// Проверяем, что нет лишних сообщений (если не ожидаются)
+				if len(tc.expectedWarn) == 0 && len(tc.expectedError) == 0 {
+					if logOutput != "" {
+						t.Logf("unexpected log output (may be acceptable): %s", logOutput)
+					}
 				}
 			}
 		})

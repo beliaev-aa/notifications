@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/beliaev-aa/notifications/internal/adapter/http"
+	"github.com/beliaev-aa/notifications/internal/adapter/httpclient"
 	"github.com/beliaev-aa/notifications/internal/adapter/notification"
 	"github.com/beliaev-aa/notifications/internal/adapter/notification/channel"
 	"github.com/beliaev-aa/notifications/internal/adapter/youtrack"
@@ -9,8 +10,6 @@ import (
 	"github.com/beliaev-aa/notifications/internal/domain/port"
 	"github.com/beliaev-aa/notifications/internal/service"
 	"github.com/sirupsen/logrus"
-	nethttp "net/http"
-	"time"
 )
 
 // App представляет основное приложение с композицией всех зависимостей
@@ -48,19 +47,13 @@ func setupNotificationSender(cfg *config.Config, logger *logrus.Logger) port.Not
 	// Регистрируем Telegram канал (используется для проектов с telegram в allowedChannels)
 	// Telegram канал создается только если указан bot_token
 	if cfg.Telegram.BotToken != "" {
-		httpClient := &nethttp.Client{
-			Timeout: time.Duration(cfg.Telegram.Timeout) * time.Second,
-		}
-		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger, httpClient))
+		notificationSender.RegisterChannel(channel.NewTelegramChannel(cfg.Telegram, logger, httpclient.NewTelegramClient(cfg.Telegram)))
 	}
 
 	// Регистрируем VK Teams канал (используется для проектов с vkteams в allowedChannels)
 	// VK Teams канал создается только если указан bot_token
 	if cfg.VKTeams.BotToken != "" {
-		httpClient := &nethttp.Client{
-			Timeout: time.Duration(cfg.VKTeams.Timeout) * time.Second,
-		}
-		notificationSender.RegisterChannel(channel.NewVKTeamsChannel(cfg.VKTeams, logger, httpClient))
+		notificationSender.RegisterChannel(channel.NewVKTeamsChannel(cfg.VKTeams, logger, httpclient.NewVKTeamsClient(cfg.VKTeams)))
 	}
 
 	return notificationSender

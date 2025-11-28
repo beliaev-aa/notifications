@@ -46,9 +46,10 @@ type TelegramConfig struct {
 // VKTeamsConfig содержит глобальную конфигурацию для VK Teams канала
 // BotToken, Timeout и ApiUrl используются для всех проектов
 type VKTeamsConfig struct {
-	BotToken string `yaml:"bot_token"` // Глобальный токен бота
-	Timeout  int    `yaml:"timeout"`   // Таймаут для HTTP запросов к VK Teams API (секунды)
-	ApiUrl   string `yaml:"api_url"`   // URL API (обязателен)
+	BotToken           string `yaml:"bot_token"`            // Глобальный токен бота
+	Timeout            int    `yaml:"timeout"`              // Таймаут для HTTP запросов к VK Teams API (секунды)
+	ApiUrl             string `yaml:"api_url"`              // URL API (обязателен)
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // Игнорировать проверку SSL сертификата (не рекомендуется для production)
 }
 
 // LoggerConfig содержит конфигурацию для логгера
@@ -223,6 +224,11 @@ func loadFromEnv(cfg *Config) error {
 	// ApiUrl
 	if val := os.Getenv("VKTEAMS_API_URL"); val != "" {
 		cfg.VKTeams.ApiUrl = val
+	}
+
+	// InsecureSkipVerify
+	if val := os.Getenv("VKTEAMS_INSECURE_SKIP_VERIFY"); val != "" {
+		cfg.VKTeams.InsecureSkipVerify = val == "true"
 	}
 
 	// Logger.Level

@@ -23,16 +23,17 @@ func TestLoadConfig(t *testing.T) {
 		{
 			name: "ENV_Variables_Have_Priority_Over_YAML",
 			envVariables: map[string]string{
-				"HTTP_ADDR":             "env_addr:8080",
-				"HTTP_SHUTDOWN_TIMEOUT": "10",
-				"HTTP_READ_TIMEOUT":     "15",
-				"HTTP_WRITE_TIMEOUT":    "20",
-				"TELEGRAM_BOT_TOKEN":    "env_token",
-				"TELEGRAM_TIMEOUT":      "30",
-				"VKTEAMS_BOT_TOKEN":     "env_vkteams_token",
-				"VKTEAMS_TIMEOUT":       "25",
-				"VKTEAMS_API_URL":       "https://api.env.example.com/bot/v1",
-				"LOG_LEVEL":             "info",
+				"HTTP_ADDR":                    "env_addr:8080",
+				"HTTP_SHUTDOWN_TIMEOUT":        "10",
+				"HTTP_READ_TIMEOUT":            "15",
+				"HTTP_WRITE_TIMEOUT":           "20",
+				"TELEGRAM_BOT_TOKEN":           "env_token",
+				"TELEGRAM_TIMEOUT":             "30",
+				"VKTEAMS_BOT_TOKEN":            "env_vkteams_token",
+				"VKTEAMS_TIMEOUT":              "25",
+				"VKTEAMS_API_URL":              "https://api.env.example.com/bot/v1",
+				"VKTEAMS_INSECURE_SKIP_VERIFY": "true",
+				"LOG_LEVEL":                    "info",
 			},
 			yamlContent: `
 http:
@@ -58,9 +59,10 @@ logger:
 					Timeout:  30,
 				},
 				VKTeams: VKTeamsConfig{
-					BotToken: "env_vkteams_token",
-					Timeout:  25,
-					ApiUrl:   "https://api.env.example.com/bot/v1",
+					BotToken:           "env_vkteams_token",
+					Timeout:            25,
+					ApiUrl:             "https://api.env.example.com/bot/v1",
+					InsecureSkipVerify: true,
 				},
 				Logger: LoggerConfig{
 					Level: "info",
@@ -572,6 +574,130 @@ notifications:
 			},
 			expectedConfig: nil,
 			expectedErr:    errors.New("VKTEAMS_TIMEOUT must be positive"),
+		},
+		{
+			name: "VKTEAMS_INSECURE_SKIP_VERIFY_True_Value",
+			envVariables: map[string]string{
+				"HTTP_ADDR":                    ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT":        "5",
+				"HTTP_READ_TIMEOUT":            "5",
+				"HTTP_WRITE_TIMEOUT":           "5",
+				"VKTEAMS_INSECURE_SKIP_VERIFY": "true",
+			},
+			expectedConfig: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout:            10,
+					ApiUrl:             "",
+					InsecureSkipVerify: true,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
+			},
+		},
+		{
+			name: "VKTEAMS_INSECURE_SKIP_VERIFY_Invalid_Value",
+			envVariables: map[string]string{
+				"HTTP_ADDR":                    ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT":        "5",
+				"HTTP_READ_TIMEOUT":            "5",
+				"HTTP_WRITE_TIMEOUT":           "5",
+				"VKTEAMS_INSECURE_SKIP_VERIFY": "1",
+			},
+			expectedConfig: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout:            10,
+					ApiUrl:             "",
+					InsecureSkipVerify: false,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
+			},
+		},
+		{
+			name: "VKTEAMS_INSECURE_SKIP_VERIFY_Invalid_Value_Yes",
+			envVariables: map[string]string{
+				"HTTP_ADDR":                    ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT":        "5",
+				"HTTP_READ_TIMEOUT":            "5",
+				"HTTP_WRITE_TIMEOUT":           "5",
+				"VKTEAMS_INSECURE_SKIP_VERIFY": "yes",
+			},
+			expectedConfig: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout:            10,
+					ApiUrl:             "",
+					InsecureSkipVerify: false,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
+			},
+		},
+		{
+			name: "VKTEAMS_INSECURE_SKIP_VERIFY_False_Value",
+			envVariables: map[string]string{
+				"HTTP_ADDR":                    ":8080",
+				"HTTP_SHUTDOWN_TIMEOUT":        "5",
+				"HTTP_READ_TIMEOUT":            "5",
+				"HTTP_WRITE_TIMEOUT":           "5",
+				"VKTEAMS_INSECURE_SKIP_VERIFY": "false",
+			},
+			expectedConfig: &Config{
+				HTTP: HTTPConfig{
+					Addr:            ":8080",
+					ShutdownTimeout: 5,
+					ReadTimeout:     5,
+					WriteTimeout:    5,
+				},
+				Telegram: TelegramConfig{
+					Timeout: 10,
+				},
+				VKTeams: VKTeamsConfig{
+					Timeout:            10,
+					ApiUrl:             "",
+					InsecureSkipVerify: false,
+				},
+				Notifications: NotificationsConfig{
+					Youtrack: YoutrackConfig{
+						Projects: make(map[string]ProjectConfig),
+					},
+				},
+			},
 		},
 		{
 			name: "Invalid_YAML_Content_Returns_Error",
