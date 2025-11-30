@@ -28,6 +28,19 @@ var fieldTranslations = map[string]string{
 	State:    "Состояние",
 }
 
+// Changed представляет информацию об изменении поля
+type Changed struct {
+	header string
+	field  string
+	value  string
+}
+
+// ChangeValueExtractor определяет тип функции для извлечения значений изменений
+type ChangeValueExtractor func(json.RawMessage, string) string
+
+// CommentTextExtractor определяет тип функции для извлечения текста комментария
+type CommentTextExtractor func(parser.YoutrackCommentValue) string
+
 // Замена экранированных спецсимволов на их не экранированные версии
 var replaceSpecialCharsMap = map[string]string{
 	"\\*": "*",
@@ -118,6 +131,42 @@ func extractChangeValue(value json.RawMessage, field string) string {
 	}
 
 	return nullValueString
+}
+
+// extractChangedFromChangesWithExtractor извлекает информацию об изменениях из списка изменений
+func extractChangedFromChangesWithExtractor(changes []parser.YoutrackChange, mention string, valueExtractor ChangeValueExtractor) *Changed {
+	changed := &Changed{}
+
+	if len(changes) == 0 {
+		return nil
+	}
+
+	for _, change := range changes {
+		oldValueStr := valueExtractor(change.OldValue, change.Field)
+		newValueStr := valueExtractor(change.NewValue, change.Field)
+
+		switch change.Field {
+		case Assignee:
+			changed.field = change.Field
+			changed.header = fmt.Sprintf("*%s Изменен исполнитель задачи*", getFieldIcon(change.Field))
+			changed.value = fmt.Sprintf("%s → %s", escapeMarkdownV2(oldValueStr), escapeMarkdownV2(mention))
+		case Comment:
+			changed.field = change.Field
+			fieldIcon := getFieldIcon(change.Field)
+			changed.header = fmt.Sprintf("*%s Добавлен комментарий*", fieldIcon)
+			changed.value = fmt.Sprintf("*%s Комментарий*: %s", fieldIcon, escapeMarkdownV2(newValueStr))
+		case Priority:
+			changed.field = change.Field
+			changed.header = fmt.Sprintf("*%s Изменен приоритет задачи*", getFieldIcon(change.Field))
+			changed.value = fmt.Sprintf("%s → %s", escapeMarkdownV2(oldValueStr), escapeMarkdownV2(newValueStr))
+		case State:
+			changed.field = change.Field
+			changed.header = fmt.Sprintf("*%s Изменен статус задачи*", getFieldIcon(change.Field))
+			changed.value = fmt.Sprintf("%s → %s", escapeMarkdownV2(oldValueStr), escapeMarkdownV2(newValueStr))
+		}
+	}
+
+	return changed
 }
 
 // extractCommentText извлекает текст комментария с упомянутыми пользователями

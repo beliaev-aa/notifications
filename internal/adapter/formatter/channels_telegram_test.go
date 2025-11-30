@@ -7,131 +7,7 @@ import (
 	"testing"
 )
 
-func TestExtractChangesVKTeams(t *testing.T) {
-	type testCase struct {
-		name           string
-		changes        []parser.YoutrackChange
-		expectedResult string
-		checkContains  []string
-	}
-
-	testCases := []testCase{
-		{
-			name:           "Extract_Changes_Empty",
-			changes:        []parser.YoutrackChange{},
-			expectedResult: "",
-		},
-		{
-			name:           "Extract_Changes_Nil",
-			changes:        nil,
-			expectedResult: "",
-		},
-		{
-			name: "Extract_Changes_State",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    State,
-					OldValue: []byte(`{"name": "To Do", "presentation": "К выполнению"}`),
-					NewValue: []byte(`{"name": "In Progress", "presentation": "В работе"}`),
-				},
-			},
-			checkContains: []string{"📊", "*Состояние:*", "К выполнению", "→", "В работе"},
-		},
-		{
-			name: "Extract_Changes_Priority",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    Priority,
-					OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
-					NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
-				},
-			},
-			checkContains: []string{"⚡", "*Приоритет:*", "Низкий", "→", "Высокий"},
-		},
-		{
-			name: "Extract_Changes_Assignee",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    Assignee,
-					OldValue: []byte(`{"fullName": "John Doe", "login": "john"}`),
-					NewValue: []byte(`{"fullName": "Jane Smith", "login": "jane"}`),
-				},
-			},
-			checkContains: []string{"👤", "*Назначена:*", "John Doe", "→", "Jane Smith"},
-		},
-		{
-			name: "Extract_Changes_Comment",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    Comment,
-					OldValue: []byte(`null`),
-					NewValue: []byte(`{"text": "Test comment", "mentionedUsers": []}`),
-				},
-			},
-			checkContains: []string{"💬", "*Комментарий:*", "Test comment"},
-		},
-		{
-			name: "Extract_Changes_Multiple",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    State,
-					OldValue: []byte(`"To Do"`),
-					NewValue: []byte(`"In Progress"`),
-				},
-				{
-					Field:    Priority,
-					OldValue: []byte(`"Low"`),
-					NewValue: []byte(`"High"`),
-				},
-			},
-			checkContains: []string{"📊", "*Состояние:*", "⚡", "*Приоритет:*"},
-		},
-		{
-			name: "Extract_Changes_Comment_With_Special_Chars",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    Comment,
-					OldValue: []byte(`null`),
-					NewValue: []byte(`{"text": "Comment with *asterisk* and _underscore_", "mentionedUsers": []}`),
-				},
-			},
-			checkContains: []string{"💬", "*Комментарий:*", "Comment with \\*asterisk\\* and \\_underscore\\_"},
-		},
-		{
-			name: "Extract_Changes_Unknown_Field",
-			changes: []parser.YoutrackChange{
-				{
-					Field:    "UnknownField",
-					OldValue: []byte(`"old"`),
-					NewValue: []byte(`"new"`),
-				},
-			},
-			checkContains: []string{"📝", "*UnknownField:*"},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := extractChangesVKTeams(tc.changes)
-
-			if tc.expectedResult != "" {
-				if result != tc.expectedResult {
-					t.Errorf("expected result %q, got: %q", tc.expectedResult, result)
-				}
-			}
-
-			if len(tc.checkContains) > 0 {
-				for _, expected := range tc.checkContains {
-					if !strings.Contains(result, expected) {
-						t.Errorf("expected result to contain %q, got: %q", expected, result)
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestExtractChangeValueVKTeams(t *testing.T) {
+func TestExtractChangeValueTelegram(t *testing.T) {
 	type testCase struct {
 		name           string
 		value          json.RawMessage
@@ -201,11 +77,77 @@ func TestExtractChangeValueVKTeams(t *testing.T) {
 			field:         "Unknown",
 			checkContains: []string{"TestValue"},
 		},
+		{
+			name:           "Extract_Change_Value_State_Invalid_JSON",
+			value:          []byte(`{"invalid": json}`),
+			field:          State,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Priority_Invalid_JSON",
+			value:          []byte(`{"invalid": json}`),
+			field:          Priority,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Assignee_Invalid_JSON",
+			value:          []byte(`{"invalid": json}`),
+			field:          Assignee,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Comment_Invalid_JSON",
+			value:          []byte(`{"invalid": json}`),
+			field:          Comment,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Object_No_Name_No_Value",
+			value:          []byte(`{"other": "field"}`),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
+		{
+			name:          "Extract_Change_Value_Object_Name_Not_String",
+			value:         []byte(`{"name": 123, "value": "TestValue"}`),
+			field:         "Unknown",
+			checkContains: []string{"TestValue"},
+		},
+		{
+			name:          "Extract_Change_Value_Object_Value_Not_String",
+			value:         []byte(`{"name": "TestName", "value": 123}`),
+			field:         "Unknown",
+			checkContains: []string{"TestName"},
+		},
+		{
+			name:          "Extract_Change_Value_Object_Empty_Name",
+			value:         []byte(`{"name": "", "value": "TestValue"}`),
+			field:         "Unknown",
+			checkContains: []string{"TestValue"},
+		},
+		{
+			name:          "Extract_Change_Value_Object_Empty_Value",
+			value:         []byte(`{"name": "TestName", "value": ""}`),
+			field:         "Unknown",
+			checkContains: []string{"TestName"},
+		},
+		{
+			name:           "Extract_Change_Value_Object_Invalid_JSON",
+			value:          []byte(`{invalid json}`),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_String_Invalid_JSON",
+			value:          []byte(`not a string`),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractChangeValueVKTeams(tc.value, tc.field)
+			result := extractChangeValueTelegram(tc.value, tc.field)
 
 			if tc.expectedResult != "" {
 				if result != tc.expectedResult {
@@ -224,7 +166,7 @@ func TestExtractChangeValueVKTeams(t *testing.T) {
 	}
 }
 
-func TestExtractCommentTextVKTeams(t *testing.T) {
+func TestExtractCommentTextTelegram(t *testing.T) {
 	type testCase struct {
 		name             string
 		comment          parser.YoutrackCommentValue
@@ -266,7 +208,7 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 			expectedResult: "Comment with *asterisk* and _underscore_",
 		},
 		{
-			name: "Extract_Comment_Text_With_Email_Mention",
+			name: "Extract_Comment_Text_With_FullName_Mention",
 			comment: parser.YoutrackCommentValue{
 				Text: "Comment with mention",
 				MentionedUsers: []parser.YoutrackUser{
@@ -277,24 +219,36 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 					},
 				},
 			},
-			checkContains:    []string{"Comment with mention", "\n[Упомянуты:", email1},
-			checkNotContains: []string{"@" + login1},
+			checkContains:    []string{"Comment with mention", "\n[Упомянуты:", fullName1},
+			checkNotContains: []string{email1, login1},
 		},
 		{
-			name: "Extract_Comment_Text_With_Login_Mention_No_Email",
+			name: "Extract_Comment_Text_With_Email_Mention_No_FullName",
+			comment: parser.YoutrackCommentValue{
+				Text: "Comment with email mention",
+				MentionedUsers: []parser.YoutrackUser{
+					{
+						Email: &email1,
+						Login: &login1,
+					},
+				},
+			},
+			checkContains: []string{"Comment with email mention", "\n[Упомянуты:", email1},
+		},
+		{
+			name: "Extract_Comment_Text_With_Login_Mention_No_FullName_No_Email",
 			comment: parser.YoutrackCommentValue{
 				Text: "Comment with login mention",
 				MentionedUsers: []parser.YoutrackUser{
 					{
-						FullName: &fullName1,
-						Login:    &login1,
+						Login: &login1,
 					},
 				},
 			},
-			checkContains: []string{"Comment with login mention", "\n[Упомянуты:", "@" + login1},
+			checkContains: []string{"Comment with login mention", "\n[Упомянуты:", login1},
 		},
 		{
-			name: "Extract_Comment_Text_With_Multiple_Mentions_Email_Priority",
+			name: "Extract_Comment_Text_With_Multiple_Mentions",
 			comment: parser.YoutrackCommentValue{
 				Text: "Comment with multiple mentions",
 				MentionedUsers: []parser.YoutrackUser{
@@ -310,11 +264,10 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 					},
 				},
 			},
-			checkContains:    []string{"Comment with multiple mentions", "\n[Упомянуты:", email1, email2},
-			checkNotContains: []string{"@" + login1, "@" + login2},
+			checkContains: []string{"Comment with multiple mentions", "\n[Упомянуты:", fullName1, fullName2},
 		},
 		{
-			name: "Extract_Comment_Text_With_Mixed_Email_And_Login",
+			name: "Extract_Comment_Text_With_Mixed_Mentions",
 			comment: parser.YoutrackCommentValue{
 				Text: "Comment with mixed mentions",
 				MentionedUsers: []parser.YoutrackUser{
@@ -329,22 +282,10 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 					},
 				},
 			},
-			checkContains: []string{"Comment with mixed mentions", "\n[Упомянуты:", email1, "@" + login2},
+			checkContains: []string{"Comment with mixed mentions", "\n[Упомянуты:", fullName1, fullName2},
 		},
 		{
-			name: "Extract_Comment_Text_With_Login_Only_No_FullName",
-			comment: parser.YoutrackCommentValue{
-				Text: "Comment with login only",
-				MentionedUsers: []parser.YoutrackUser{
-					{
-						Login: &login1,
-					},
-				},
-			},
-			checkContains: []string{"Comment with login only", "\n[Упомянуты:", "@" + login1},
-		},
-		{
-			name: "Extract_Comment_Text_With_Empty_Email_And_Login",
+			name: "Extract_Comment_Text_With_FullName_Only",
 			comment: parser.YoutrackCommentValue{
 				Text: "Comment text",
 				MentionedUsers: []parser.YoutrackUser{
@@ -353,8 +294,7 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 					},
 				},
 			},
-			expectedResult:   "Comment text",
-			checkNotContains: []string{"[Упомянуты:"},
+			checkContains: []string{"Comment text", "\n[Упомянуты:", fullName1},
 		},
 		{
 			name: "Extract_Comment_Text_With_Empty_MentionedUsers",
@@ -369,7 +309,7 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractCommentTextVKTeams(tc.comment)
+			result := extractCommentTextTelegram(tc.comment)
 
 			if tc.expectedResult != "" {
 				if result != tc.expectedResult {
@@ -396,7 +336,68 @@ func TestExtractCommentTextVKTeams(t *testing.T) {
 	}
 }
 
-func TestFormatVKTeams(t *testing.T) {
+func TestEscapeMarkdownV2URL(t *testing.T) {
+	type testCase struct {
+		name           string
+		url            string
+		expectedResult string
+	}
+
+	testCases := []testCase{
+		{
+			name:           "Escape_URL_Empty",
+			url:            "",
+			expectedResult: "",
+		},
+		{
+			name:           "Escape_URL_Simple",
+			url:            "https://example.com",
+			expectedResult: "https://example.com",
+		},
+		{
+			name:           "Escape_URL_With_Backslash",
+			url:            "https://example.com\\path",
+			expectedResult: "https://example.com\\\\path",
+		},
+		{
+			name:           "Escape_URL_With_Parenthesis",
+			url:            "https://example.com/path)",
+			expectedResult: "https://example.com/path\\)",
+		},
+		{
+			name:           "Escape_URL_With_Both",
+			url:            "https://example.com\\path)",
+			expectedResult: "https://example.com\\\\path\\)",
+		},
+		{
+			name:           "Escape_URL_With_Multiple_Backslashes",
+			url:            "https://example.com\\path\\to\\file",
+			expectedResult: "https://example.com\\\\path\\\\to\\\\file",
+		},
+		{
+			name:           "Escape_URL_With_Multiple_Parentheses",
+			url:            "https://example.com/path(1)(2)",
+			expectedResult: "https://example.com/path(1\\)(2\\)",
+		},
+		{
+			name:           "Escape_URL_Complex",
+			url:            "https://youtrack.test/issue/PROJ-123\\test)",
+			expectedResult: "https://youtrack.test/issue/PROJ-123\\\\test\\)",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := escapeMarkdownV2URL(tc.url)
+
+			if result != tc.expectedResult {
+				t.Errorf("expected result %q, got: %q", tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestFormatTelegram(t *testing.T) {
 	type testCase struct {
 		name             string
 		payload          *parser.YoutrackWebhookPayload
@@ -420,7 +421,7 @@ func TestFormatVKTeams(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Format_VKTeams_Basic",
+			name: "Format_Telegram_Basic",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name:         &projectName,
@@ -449,8 +450,8 @@ func TestFormatVKTeams(t *testing.T) {
 				Changes: []parser.YoutrackChange{
 					{
 						Field:    State,
-						OldValue: []byte(`"To Do"`),
-						NewValue: []byte(`"In Progress"`),
+						OldValue: []byte(`{"name": "To Do", "presentation": "К выполнению"}`),
+						NewValue: []byte(`{"name": "In Progress", "presentation": "В работе"}`),
 					},
 				},
 			},
@@ -460,7 +461,7 @@ func TestFormatVKTeams(t *testing.T) {
 				"TestProject",
 				"*📋 Задача:*",
 				"Test Issue Summary",
-				"🔗 *Ссылка:*",
+				"*🔗 Ссылка:*",
 				"*📊 Состояние:*",
 				"В работе",
 				"*⚡️ Приоритет:*",
@@ -469,13 +470,10 @@ func TestFormatVKTeams(t *testing.T) {
 				"John Doe",
 				"*✏️ Автор изменения:*",
 				"Jane Smith",
-				"🔄 *Изменения:*",
-				"📊",
-				"*Состояние:*",
 			},
 		},
 		{
-			name: "Format_VKTeams_With_Assignee_Change",
+			name: "Format_Telegram_With_Assignee_Change",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -491,6 +489,7 @@ func TestFormatVKTeams(t *testing.T) {
 					},
 					Assignee: &parser.YoutrackUser{
 						FullName: &assigneeFullName,
+						Login:    &assigneeLogin,
 					},
 				},
 				Updater: &parser.YoutrackUser{
@@ -509,11 +508,11 @@ func TestFormatVKTeams(t *testing.T) {
 				"*👤 Назначена:*",
 				"Old User",
 				"→",
-				"New User",
+				"John Doe",
 			},
 		},
 		{
-			name: "Format_VKTeams_With_Comment_Change",
+			name: "Format_Telegram_With_Comment_Change",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -544,13 +543,195 @@ func TestFormatVKTeams(t *testing.T) {
 			},
 			checkContains: []string{
 				"*💬 Добавлен комментарий*",
-				"💬",
-				"*Комментарий:*",
+				"*💬 Комментарий*:",
 				"New comment text",
 			},
 		},
 		{
-			name: "Format_VKTeams_With_Comment_With_Email_Mention",
+			name: "Format_Telegram_With_Priority_Change",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					State: &parser.YoutrackFieldValue{
+						Name: &stateName,
+					},
+					Priority: &parser.YoutrackFieldValue{
+						Name: &priorityName,
+					},
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+					},
+				},
+				Updater: &parser.YoutrackUser{
+					FullName: &updaterFullName,
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    Priority,
+						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
+						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*⚡ Изменен приоритет задачи*",
+				"*⚡️ Приоритет:*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Special_Chars",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: stringPtr("Project_With*Special[Chars]"),
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: "Issue with *asterisk* and _underscore_",
+					URL:     "https://youtrack.test/issue/PROJ-123\\test)",
+					State: &parser.YoutrackFieldValue{
+						Name: stringPtr("State (with) parentheses"),
+					},
+					Priority: &parser.YoutrackFieldValue{
+						Name: stringPtr("Priority #high"),
+					},
+					Assignee: &parser.YoutrackUser{
+						FullName: stringPtr("User >with< special"),
+					},
+				},
+				Updater: &parser.YoutrackUser{
+					FullName: stringPtr("Updater ~with~ tilde"),
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    State,
+						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
+						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*📊 Изменен статус задачи*",
+				"Project\\_With\\*Special\\[Chars\\]",
+				"Issue with \\*asterisk\\* and \\_underscore\\_",
+				"Старое → Новое",
+				"Priority \\#high",
+				"Updater \\~with\\~ tilde",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Multiple_Changes",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					State: &parser.YoutrackFieldValue{
+						Name: &stateName,
+					},
+					Priority: &parser.YoutrackFieldValue{
+						Name: &priorityName,
+					},
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+					},
+				},
+				Updater: &parser.YoutrackUser{
+					FullName: &updaterFullName,
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    State,
+						OldValue: []byte(`{"name": "To Do", "presentation": "К выполнению"}`),
+						NewValue: []byte(`{"name": "In Progress", "presentation": "В работе"}`),
+					},
+					{
+						Field:    Priority,
+						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
+						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
+					},
+					{
+						Field:    Assignee,
+						OldValue: []byte(`{"fullName": "Old"}`),
+						NewValue: []byte(`{"fullName": "New"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*👤 Изменен исполнитель задачи*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_No_Changes",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					State: &parser.YoutrackFieldValue{
+						Name: &stateName,
+					},
+					Priority: &parser.YoutrackFieldValue{
+						Name: &priorityName,
+					},
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+					},
+				},
+				Updater: &parser.YoutrackUser{
+					FullName: &updaterFullName,
+				},
+				Changes: []parser.YoutrackChange{},
+			},
+			checkContains: []string{
+				"*📁 Проект:*",
+				"*📋 Задача:*",
+			},
+			checkNotContains: []string{
+				"🔄 *Изменения:*",
+				"*💬 Добавлен комментарий*",
+				"*📊 Изменен статус задачи*",
+				"*⚡ Изменен приоритет задачи*",
+				"*👤 Изменен исполнитель задачи*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Nil_Fields",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary:  issueSummary,
+					URL:      issueURL,
+					State:    nil,
+					Priority: nil,
+					Assignee: nil,
+				},
+				Updater: nil,
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    State,
+						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
+						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*📊 Состояние:*",
+				"*⚡️ Приоритет:*",
+				"*👤 Назначена:*",
+				"*✏️ Автор изменения:*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Comment_With_Mentions",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -583,231 +764,11 @@ func TestFormatVKTeams(t *testing.T) {
 				"*💬 Добавлен комментарий*",
 				"Comment with mention",
 				"\\[Упомянуты:",
-				"user1@example\\.com",
-			},
-			checkNotContains: []string{"@user1"},
-		},
-		{
-			name: "Format_VKTeams_With_Comment_With_Login_Mention",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    Comment,
-						OldValue: []byte(`null`),
-						NewValue: []byte(`{"text": "Comment with login mention", "mentionedUsers": [{"fullName": "User One", "login": "user1"}]}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*💬 Добавлен комментарий*",
-				"Comment with login mention",
-				"\\[Упомянуты:",
-				"@user1",
+				"User One",
 			},
 		},
 		{
-			name: "Format_VKTeams_With_Priority_Change",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    Priority,
-						OldValue: []byte(`"Low"`),
-						NewValue: []byte(`"High"`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*⚡️ Изменен приоритет задачи*",
-				"⚡",
-				"*Приоритет:*",
-			},
-		},
-		{
-			name: "Format_VKTeams_With_Special_Chars",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: stringPtr("Project_With*Special[Chars]"),
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: "Issue with *asterisk* and _underscore_",
-					URL:     "https://youtrack.test/issue/PROJ-123\\test)",
-					State: &parser.YoutrackFieldValue{
-						Name: stringPtr("State (with) parentheses"),
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: stringPtr("Priority #high"),
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: stringPtr("User >with< special"),
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: stringPtr("Updater ~with~ tilde"),
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`"Old"`),
-						NewValue: []byte(`"New"`),
-					},
-				},
-			},
-			checkContains: []string{
-				"Project\\_With\\*Special\\[Chars\\]",
-				"Issue with \\*asterisk\\* and \\_underscore\\_",
-				"State \\(with\\) parentheses",
-				"Priority \\#high",
-				"User \\>with< special",
-				"Updater \\~with\\~ tilde",
-			},
-		},
-		{
-			name: "Format_VKTeams_With_Multiple_Changes",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`"To Do"`),
-						NewValue: []byte(`"In Progress"`),
-					},
-					{
-						Field:    Priority,
-						OldValue: []byte(`"Low"`),
-						NewValue: []byte(`"High"`),
-					},
-					{
-						Field:    Assignee,
-						OldValue: []byte(`{"fullName": "Old"}`),
-						NewValue: []byte(`{"fullName": "New"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*📊 Изменен статус задачи*",
-				"*⚡️ Изменен приоритет задачи*",
-				"*👤 Изменен исполнитель задачи*",
-			},
-		},
-		{
-			name: "Format_VKTeams_With_No_Changes",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{},
-			},
-			checkContains: []string{
-				"*📁 Проект:*",
-				"*📋 Задача:*",
-			},
-			checkNotContains: []string{
-				"🔄 *Изменения:*",
-			},
-		},
-		{
-			name: "Format_VKTeams_With_Nil_Fields",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary:  issueSummary,
-					URL:      issueURL,
-					State:    nil,
-					Priority: nil,
-					Assignee: nil,
-				},
-				Updater: nil,
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`"Old"`),
-						NewValue: []byte(`"New"`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*📊 Состояние:*",
-				"*⚡️ Приоритет:*",
-				"*👤 Назначена:*",
-				"*✏️ Автор изменения:*",
-			},
-		},
-		{
-			name: "Format_VKTeams_With_Comment_Multiple_Mentions",
+			name: "Format_Telegram_With_Comment_Multiple_Mentions",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -837,17 +798,60 @@ func TestFormatVKTeams(t *testing.T) {
 				},
 			},
 			checkContains: []string{
+				"*💬 Добавлен комментарий*",
 				"Comment with multiple mentions",
 				"\\[Упомянуты:",
-				"user1@example\\.com",
-				"@user2",
+				"User One",
+				"User Two",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Unknown_Field_Change",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					State: &parser.YoutrackFieldValue{
+						Name: &stateName,
+					},
+					Priority: &parser.YoutrackFieldValue{
+						Name: &priorityName,
+					},
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+						Login:    &assigneeLogin,
+					},
+				},
+				Updater: &parser.YoutrackUser{
+					FullName: &updaterFullName,
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    "UnknownField",
+						OldValue: []byte(`"old"`),
+						NewValue: []byte(`"new"`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*📁 Проект:*",
+				"*📋 Задача:*",
+			},
+			checkNotContains: []string{
+				"*💬 Добавлен комментарий*",
+				"*📊 Изменен статус задачи*",
+				"*⚡ Изменен приоритет задачи*",
+				"*👤 Изменен исполнитель задачи*",
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := FormatVKTeams(tc.payload)
+			result := FormatTelegram(tc.payload)
 
 			if tc.expectedResult != "" {
 				if result != tc.expectedResult {
@@ -869,6 +873,94 @@ func TestFormatVKTeams(t *testing.T) {
 						t.Errorf("expected result not to contain %q, got: %q", notExpected, result)
 					}
 				}
+			}
+		})
+	}
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func TestTelegramMentionFormatter_FormatMention(t *testing.T) {
+	type testCase struct {
+		name           string
+		user           parser.YoutrackUser
+		expectedResult string
+	}
+
+	fullName := "John Doe"
+	email := "john@example.com"
+	login := "john"
+	emptyString := ""
+
+	testCases := []testCase{
+		{
+			name: "Format_Mention_With_FullName",
+			user: parser.YoutrackUser{
+				FullName: &fullName,
+				Email:    &email,
+				Login:    &login,
+			},
+			expectedResult: fullName,
+		},
+		{
+			name: "Format_Mention_With_Email_No_FullName",
+			user: parser.YoutrackUser{
+				Email: &email,
+				Login: &login,
+			},
+			expectedResult: email,
+		},
+		{
+			name: "Format_Mention_With_Login_Only",
+			user: parser.YoutrackUser{
+				Login: &login,
+			},
+			expectedResult: login,
+		},
+		{
+			name: "Format_Mention_With_Empty_FullName_Uses_Email",
+			user: parser.YoutrackUser{
+				FullName: &emptyString,
+				Email:    &email,
+				Login:    &login,
+			},
+			expectedResult: email,
+		},
+		{
+			name: "Format_Mention_With_Empty_FullName_And_Email_Uses_Login",
+			user: parser.YoutrackUser{
+				FullName: &emptyString,
+				Email:    &emptyString,
+				Login:    &login,
+			},
+			expectedResult: login,
+		},
+		{
+			name: "Format_Mention_All_Empty",
+			user: parser.YoutrackUser{
+				FullName: &emptyString,
+				Email:    &emptyString,
+				Login:    &emptyString,
+			},
+			expectedResult: "",
+		},
+		{
+			name:           "Format_Mention_All_Nil",
+			user:           parser.YoutrackUser{},
+			expectedResult: "",
+		},
+	}
+
+	formatter := &TelegramMentionFormatter{}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := formatter.FormatMention(tc.user)
+
+			if result != tc.expectedResult {
+				t.Errorf("expected result %q, got: %q", tc.expectedResult, result)
 			}
 		})
 	}
