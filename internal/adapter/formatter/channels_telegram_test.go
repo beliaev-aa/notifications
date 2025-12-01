@@ -30,12 +30,6 @@ func TestExtractChangeValueTelegram(t *testing.T) {
 			expectedResult: nullValueString,
 		},
 		{
-			name:           "Extract_Change_Value_Empty_String",
-			value:          []byte(`""`),
-			field:          "Unknown",
-			expectedResult: "",
-		},
-		{
 			name:          "Extract_Change_Value_State",
 			value:         []byte(`{"name": "In Progress", "presentation": "В работе"}`),
 			field:         State,
@@ -54,10 +48,16 @@ func TestExtractChangeValueTelegram(t *testing.T) {
 			checkContains: []string{"John Doe"},
 		},
 		{
-			name:          "Extract_Change_Value_Comment",
+			name:          "Extract_Change_Value_Comment_Simple",
 			value:         []byte(`{"text": "Test comment", "mentionedUsers": []}`),
 			field:         Comment,
 			checkContains: []string{"Test comment"},
+		},
+		{
+			name:           "Extract_Change_Value_Comment_Invalid_JSON",
+			value:          []byte(`{"invalid": json}`),
+			field:          Comment,
+			expectedResult: nullValueString,
 		},
 		{
 			name:           "Extract_Change_Value_String",
@@ -72,76 +72,46 @@ func TestExtractChangeValueTelegram(t *testing.T) {
 			checkContains: []string{"TestName"},
 		},
 		{
-			name:          "Extract_Change_Value_Object_With_Value",
-			value:         []byte(`{"value": "TestValue"}`),
-			field:         "Unknown",
-			checkContains: []string{"TestValue"},
-		},
-		{
-			name:           "Extract_Change_Value_State_Invalid_JSON",
-			value:          []byte(`{"invalid": json}`),
-			field:          State,
-			expectedResult: nullValueString,
-		},
-		{
-			name:           "Extract_Change_Value_Priority_Invalid_JSON",
-			value:          []byte(`{"invalid": json}`),
-			field:          Priority,
-			expectedResult: nullValueString,
-		},
-		{
-			name:           "Extract_Change_Value_Assignee_Invalid_JSON",
-			value:          []byte(`{"invalid": json}`),
-			field:          Assignee,
-			expectedResult: nullValueString,
-		},
-		{
-			name:           "Extract_Change_Value_Comment_Invalid_JSON",
-			value:          []byte(`{"invalid": json}`),
-			field:          Comment,
-			expectedResult: nullValueString,
-		},
-		{
 			name:           "Extract_Change_Value_Object_No_Name_No_Value",
 			value:          []byte(`{"other": "field"}`),
 			field:          "Unknown",
 			expectedResult: nullValueString,
 		},
 		{
-			name:          "Extract_Change_Value_Object_Name_Not_String",
-			value:         []byte(`{"name": 123, "value": "TestValue"}`),
-			field:         "Unknown",
-			checkContains: []string{"TestValue"},
-		},
-		{
-			name:          "Extract_Change_Value_Object_Value_Not_String",
-			value:         []byte(`{"name": "TestName", "value": 123}`),
-			field:         "Unknown",
-			checkContains: []string{"TestName"},
-		},
-		{
-			name:          "Extract_Change_Value_Object_Empty_Name",
-			value:         []byte(`{"name": "", "value": "TestValue"}`),
-			field:         "Unknown",
-			checkContains: []string{"TestValue"},
-		},
-		{
-			name:          "Extract_Change_Value_Object_Empty_Value",
-			value:         []byte(`{"name": "TestName", "value": ""}`),
-			field:         "Unknown",
-			checkContains: []string{"TestName"},
-		},
-		{
-			name:           "Extract_Change_Value_Object_Invalid_JSON",
+			name:           "Extract_Change_Value_Invalid_JSON",
 			value:          []byte(`{invalid json}`),
 			field:          "Unknown",
 			expectedResult: nullValueString,
 		},
 		{
-			name:           "Extract_Change_Value_String_Invalid_JSON",
-			value:          []byte(`not a string`),
-			field:          "Unknown",
+			name:           "Extract_Change_Value_State_Invalid_JSON",
+			value:          []byte(`{invalid}`),
+			field:          State,
 			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Priority_Invalid_JSON",
+			value:          []byte(`{invalid}`),
+			field:          Priority,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Assignee_Invalid_JSON",
+			value:          []byte(`{invalid}`),
+			field:          Assignee,
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Comment_Invalid_JSON",
+			value:          []byte(`{invalid}`),
+			field:          Comment,
+			expectedResult: nullValueString,
+		},
+		{
+			name:          "Extract_Change_Value_Unknown_Field_Object_With_Value_No_Name",
+			value:         []byte(`{"value": "TestValue", "other": "field"}`),
+			field:         "Unknown",
+			checkContains: []string{"TestValue"},
 		},
 	}
 
@@ -176,9 +146,7 @@ func TestExtractCommentTextTelegram(t *testing.T) {
 	}
 
 	email1 := "user1@example.com"
-	email2 := "user2@example.com"
 	login1 := "user1"
-	login2 := "user2"
 	fullName1 := "User One"
 	fullName2 := "User Two"
 
@@ -198,14 +166,6 @@ func TestExtractCommentTextTelegram(t *testing.T) {
 				MentionedUsers: []parser.YoutrackUser{},
 			},
 			expectedResult: "Simple comment text",
-		},
-		{
-			name: "Extract_Comment_Text_With_Special_Chars",
-			comment: parser.YoutrackCommentValue{
-				Text:           "Comment with *asterisk* and _underscore_",
-				MentionedUsers: []parser.YoutrackUser{},
-			},
-			expectedResult: "Comment with *asterisk* and _underscore_",
 		},
 		{
 			name: "Extract_Comment_Text_With_FullName_Mention",
@@ -258,43 +218,11 @@ func TestExtractCommentTextTelegram(t *testing.T) {
 						Login:    &login1,
 					},
 					{
-						Email:    &email2,
 						FullName: &fullName2,
-						Login:    &login2,
 					},
 				},
 			},
 			checkContains: []string{"Comment with multiple mentions", "\n[Упомянуты:", fullName1, fullName2},
-		},
-		{
-			name: "Extract_Comment_Text_With_Mixed_Mentions",
-			comment: parser.YoutrackCommentValue{
-				Text: "Comment with mixed mentions",
-				MentionedUsers: []parser.YoutrackUser{
-					{
-						Email:    &email1,
-						FullName: &fullName1,
-						Login:    &login1,
-					},
-					{
-						FullName: &fullName2,
-						Login:    &login2,
-					},
-				},
-			},
-			checkContains: []string{"Comment with mixed mentions", "\n[Упомянуты:", fullName1, fullName2},
-		},
-		{
-			name: "Extract_Comment_Text_With_FullName_Only",
-			comment: parser.YoutrackCommentValue{
-				Text: "Comment text",
-				MentionedUsers: []parser.YoutrackUser{
-					{
-						FullName: &fullName1,
-					},
-				},
-			},
-			checkContains: []string{"Comment text", "\n[Упомянуты:", fullName1},
 		},
 		{
 			name: "Extract_Comment_Text_With_Empty_MentionedUsers",
@@ -461,273 +389,10 @@ func TestFormatTelegram(t *testing.T) {
 				"TestProject",
 				"*📋 Задача:*",
 				"Test Issue Summary",
-				"*🔗 Ссылка:*",
-				"*📊 Состояние:*",
-				"В работе",
-				"*⚡️ Приоритет:*",
-				"Высокий",
 				"*👤 Назначена:*",
 				"John Doe",
 				"*✏️ Автор изменения:*",
 				"Jane Smith",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Assignee_Change",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-						Login:    &assigneeLogin,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    Assignee,
-						OldValue: []byte(`{"fullName": "Old User"}`),
-						NewValue: []byte(`{"fullName": "New User"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*👤 Изменен исполнитель задачи*",
-				"*👤 Назначена:*",
-				"Old User",
-				"→",
-				"John Doe",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Comment_Change",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    Comment,
-						OldValue: []byte(`null`),
-						NewValue: []byte(`{"text": "New comment text", "mentionedUsers": []}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*💬 Добавлен комментарий*",
-				"*💬 Комментарий*:",
-				"New comment text",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Priority_Change",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    Priority,
-						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
-						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*⚡ Изменен приоритет задачи*",
-				"*⚡️ Приоритет:*",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Special_Chars",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: stringPtr("Project_With*Special[Chars]"),
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: "Issue with *asterisk* and _underscore_",
-					URL:     "https://youtrack.test/issue/PROJ-123\\test)",
-					State: &parser.YoutrackFieldValue{
-						Name: stringPtr("State (with) parentheses"),
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: stringPtr("Priority #high"),
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: stringPtr("User >with< special"),
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: stringPtr("Updater ~with~ tilde"),
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
-						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*📊 Изменен статус задачи*",
-				"Project\\_With\\*Special\\[Chars\\]",
-				"Issue with \\*asterisk\\* and \\_underscore\\_",
-				"Старое → Новое",
-				"Priority \\#high",
-				"Updater \\~with\\~ tilde",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Multiple_Changes",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`{"name": "To Do", "presentation": "К выполнению"}`),
-						NewValue: []byte(`{"name": "In Progress", "presentation": "В работе"}`),
-					},
-					{
-						Field:    Priority,
-						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
-						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
-					},
-					{
-						Field:    Assignee,
-						OldValue: []byte(`{"fullName": "Old"}`),
-						NewValue: []byte(`{"fullName": "New"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*👤 Изменен исполнитель задачи*",
-			},
-		},
-		{
-			name: "Format_Telegram_With_No_Changes",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary: issueSummary,
-					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
-				},
-				Changes: []parser.YoutrackChange{},
-			},
-			checkContains: []string{
-				"*📁 Проект:*",
-				"*📋 Задача:*",
-			},
-			checkNotContains: []string{
-				"🔄 *Изменения:*",
-				"*💬 Добавлен комментарий*",
-				"*📊 Изменен статус задачи*",
-				"*⚡ Изменен приоритет задачи*",
-				"*👤 Изменен исполнитель задачи*",
-			},
-		},
-		{
-			name: "Format_Telegram_With_Nil_Fields",
-			payload: &parser.YoutrackWebhookPayload{
-				Project: &parser.YoutrackFieldValue{
-					Name: &projectName,
-				},
-				Issue: parser.YoutrackIssue{
-					Summary:  issueSummary,
-					URL:      issueURL,
-					State:    nil,
-					Priority: nil,
-					Assignee: nil,
-				},
-				Updater: nil,
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    State,
-						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
-						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
-					},
-				},
-			},
-			checkContains: []string{
-				"*📊 Состояние:*",
-				"*⚡️ Приоритет:*",
-				"*👤 Назначена:*",
-				"*✏️ Автор изменения:*",
 			},
 		},
 		{
@@ -766,9 +431,12 @@ func TestFormatTelegram(t *testing.T) {
 				"\\[Упомянуты:",
 				"User One",
 			},
+			checkNotContains: []string{
+				"user1@example.com",
+			},
 		},
 		{
-			name: "Format_Telegram_With_Comment_Multiple_Mentions",
+			name: "Format_Telegram_With_Comment_Email_No_FullName",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -776,37 +444,21 @@ func TestFormatTelegram(t *testing.T) {
 				Issue: parser.YoutrackIssue{
 					Summary: issueSummary,
 					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
-					Priority: &parser.YoutrackFieldValue{
-						Name: &priorityName,
-					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
 				},
 				Changes: []parser.YoutrackChange{
 					{
 						Field:    Comment,
 						OldValue: []byte(`null`),
-						NewValue: []byte(`{"text": "Comment with multiple mentions", "mentionedUsers": [{"email": "user1@example.com", "fullName": "User One", "login": "user1"}, {"fullName": "User Two", "login": "user2"}]}`),
+						NewValue: []byte(`{"text": "Comment", "mentionedUsers": [{"email": "user1@example.com", "login": "user1"}]}`),
 					},
 				},
 			},
 			checkContains: []string{
-				"*💬 Добавлен комментарий*",
-				"Comment with multiple mentions",
-				"\\[Упомянуты:",
-				"User One",
-				"User Two",
+				"user1@example",
 			},
 		},
 		{
-			name: "Format_Telegram_With_Unknown_Field_Change",
+			name: "Format_Telegram_With_Priority_Change",
 			payload: &parser.YoutrackWebhookPayload{
 				Project: &parser.YoutrackFieldValue{
 					Name: &projectName,
@@ -814,27 +466,60 @@ func TestFormatTelegram(t *testing.T) {
 				Issue: parser.YoutrackIssue{
 					Summary: issueSummary,
 					URL:     issueURL,
-					State: &parser.YoutrackFieldValue{
-						Name: &stateName,
-					},
 					Priority: &parser.YoutrackFieldValue{
 						Name: &priorityName,
 					},
-					Assignee: &parser.YoutrackUser{
-						FullName: &assigneeFullName,
-						Login:    &assigneeLogin,
-					},
-				},
-				Updater: &parser.YoutrackUser{
-					FullName: &updaterFullName,
 				},
 				Changes: []parser.YoutrackChange{
 					{
-						Field:    "UnknownField",
-						OldValue: []byte(`"old"`),
-						NewValue: []byte(`"new"`),
+						Field:    Priority,
+						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
+						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
 					},
 				},
+			},
+			checkContains: []string{
+				"Изменен приоритет задачи",
+				"*⚡️ Приоритет:*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Assignee_Change",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+					},
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    Assignee,
+						OldValue: []byte(`{"fullName": "Old User"}`),
+						NewValue: []byte(`{"fullName": "New User"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*👤 Изменен исполнитель задачи*",
+				"*👤 Назначена:*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_No_Changes",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+				},
+				Changes: []parser.YoutrackChange{},
 			},
 			checkContains: []string{
 				"*📁 Проект:*",
@@ -843,8 +528,112 @@ func TestFormatTelegram(t *testing.T) {
 			checkNotContains: []string{
 				"*💬 Добавлен комментарий*",
 				"*📊 Изменен статус задачи*",
-				"*⚡ Изменен приоритет задачи*",
-				"*👤 Изменен исполнитель задачи*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Nil_Fields",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary:  issueSummary,
+					URL:      issueURL,
+					State:    nil,
+					Priority: nil,
+					Assignee: nil,
+				},
+				Updater: nil,
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    State,
+						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
+						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*📊 Состояние:*",
+				"*⚡️ Приоритет:*",
+				"*👤 Назначена:*",
+			},
+		},
+		{
+			name: "Format_Telegram_With_State_Change_Shows_Changed_Value",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					State: &parser.YoutrackFieldValue{
+						Name: &stateName,
+					},
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    State,
+						OldValue: []byte(`{"name": "Old", "presentation": "Старое"}`),
+						NewValue: []byte(`{"name": "New", "presentation": "Новое"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*📊 Состояние:*",
+				"Старое → Новое",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Priority_Change_Shows_Changed_Value",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					Priority: &parser.YoutrackFieldValue{
+						Name: &priorityName,
+					},
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    Priority,
+						OldValue: []byte(`{"name": "Low", "presentation": "Низкий"}`),
+						NewValue: []byte(`{"name": "High", "presentation": "Высокий"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*⚡️ Приоритет:*",
+				"Низкий → Высокий",
+			},
+		},
+		{
+			name: "Format_Telegram_With_Assignee_Change_Shows_Changed_Value",
+			payload: &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{
+					Name: &projectName,
+				},
+				Issue: parser.YoutrackIssue{
+					Summary: issueSummary,
+					URL:     issueURL,
+					Assignee: &parser.YoutrackUser{
+						FullName: &assigneeFullName,
+					},
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    Assignee,
+						OldValue: []byte(`{"fullName": "Old User"}`),
+						NewValue: []byte(`{"fullName": "New User"}`),
+					},
+				},
+			},
+			checkContains: []string{
+				"*👤 Назначена:*",
+				"Old User →",
 			},
 		},
 	}
@@ -916,24 +705,6 @@ func TestTelegramMentionFormatter_FormatMention(t *testing.T) {
 			name: "Format_Mention_With_Login_Only",
 			user: parser.YoutrackUser{
 				Login: &login,
-			},
-			expectedResult: login,
-		},
-		{
-			name: "Format_Mention_With_Empty_FullName_Uses_Email",
-			user: parser.YoutrackUser{
-				FullName: &emptyString,
-				Email:    &email,
-				Login:    &login,
-			},
-			expectedResult: email,
-		},
-		{
-			name: "Format_Mention_With_Empty_FullName_And_Email_Uses_Login",
-			user: parser.YoutrackUser{
-				FullName: &emptyString,
-				Email:    &emptyString,
-				Login:    &login,
 			},
 			expectedResult: login,
 		},

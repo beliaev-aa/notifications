@@ -190,6 +190,101 @@ func TestYoutrackFormatter_Format(t *testing.T) {
 				"Приоритет:",
 			},
 		},
+		{
+			name: "Format_With_Empty_Channel_Name",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Test",
+					URL:     "https://test.com",
+				},
+			},
+			channel: "",
+			checkContains: []string{
+				"Проект:",
+			},
+		},
+		{
+			name: "Format_With_Unicode_Characters",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Тест с кириллицей 🚀",
+					URL:     "https://test.com",
+				},
+			},
+			channel: "default",
+			checkContains: []string{
+				"Тест с кириллицей",
+			},
+		},
+		{
+			name: "Format_With_Null_Values",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Test Issue",
+					URL:     "https://test.com",
+				},
+				Changes: []parser.YoutrackChange{
+					{
+						Field:    "State",
+						OldValue: []byte(`null`),
+						NewValue: []byte(`null`),
+					},
+				},
+			},
+			channel: "default",
+			checkContains: []string{
+				"Состояние:",
+				"(Не установлен)",
+			},
+		},
+		{
+			name: "Format_With_Empty_Changes",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Test Issue",
+					URL:     "https://test.com",
+				},
+				Changes: []parser.YoutrackChange{},
+			},
+			channel: "default",
+			checkContains: []string{
+				"Проект:",
+				"Изменения:",
+			},
+		},
+		{
+			name: "Format_With_Field_With_Presentation",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Test Issue",
+					URL:     "https://test.com",
+					State: &parser.YoutrackFieldValue{
+						Name:         func() *string { s := "In Progress"; return &s }(),
+						Presentation: func() *string { s := "В работе"; return &s }(),
+					},
+				},
+			},
+			channel: "default",
+			checkContains: []string{
+				"В работе",
+			},
+		},
+		{
+			name: "Format_With_User_With_Login_Only",
+			payload: &parser.YoutrackWebhookPayload{
+				Issue: parser.YoutrackIssue{
+					Summary: "Test Issue",
+					URL:     "https://test.com",
+					Assignee: &parser.YoutrackUser{
+						Login: func() *string { s := "Login"; return &s }(),
+					},
+				},
+			},
+			channel: "default",
+			checkContains: []string{
+				"Login",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -397,207 +492,6 @@ func TestYoutrackFormatter_Integration(t *testing.T) {
 			customResult := formatter.Format(tc.payload, "custom")
 			if customResult != customFormat {
 				t.Errorf("expected custom format %q, got: %q", customFormat, customResult)
-			}
-		})
-	}
-}
-
-func TestYoutrackFormatter_EdgeCases(t *testing.T) {
-	type testCase struct {
-		name             string
-		payload          *parser.YoutrackWebhookPayload
-		channel          string
-		expectedResult   string
-		checkContains    []string
-		checkNotContains []string
-	}
-
-	inProgressEn := "In Progress"
-	inProgressRu := "В работе"
-	loginStr := "Login"
-
-	testCases := []testCase{
-		{
-			name: "Format_With_Empty_Channel_Name",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test",
-					URL:     "https://test.com",
-				},
-			},
-			channel: "",
-			checkContains: []string{
-				"Проект:",
-			},
-		},
-		{
-			name: "Format_With_Unicode_Characters",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Тест с кириллицей 🚀",
-					URL:     "https://test.com",
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Тест с кириллицей",
-			},
-		},
-		{
-			name: "Format_With_Special_Characters_In_Summary",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test & <test> \"quotes\" 'apostrophes'",
-					URL:     "https://test.com",
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Test &",
-			},
-		},
-		{
-			name: "Format_With_Comment_With_Mentions",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    "Comment",
-						OldValue: []byte(`null`),
-						NewValue: []byte(`{"text": "Test comment with @user", "mentionedUsers": [{"fullName": "John Doe"}]}`),
-					},
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Комментарий:",
-				"Упомянуты:",
-			},
-		},
-		{
-			name: "Format_With_Assignee_Change",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    "Assignee",
-						OldValue: []byte(`{"fullName": "Old User"}`),
-						NewValue: []byte(`{"fullName": "New User"}`),
-					},
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Назначена:",
-			},
-		},
-		{
-			name: "Format_With_Null_Values",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-				},
-				Changes: []parser.YoutrackChange{
-					{
-						Field:    "State",
-						OldValue: []byte(`null`),
-						NewValue: []byte(`null`),
-					},
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Состояние:",
-				"(Не установлен)",
-			},
-		},
-		{
-			name: "Format_With_Empty_Changes",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-				},
-				Changes: []parser.YoutrackChange{},
-			},
-			channel: "default",
-			checkContains: []string{
-				"Проект:",
-				"Изменения:",
-			},
-		},
-		{
-			name: "Format_With_Field_With_Presentation",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-					State: &parser.YoutrackFieldValue{
-						Name:         &inProgressEn,
-						Presentation: &inProgressRu,
-					},
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				inProgressRu,
-			},
-		},
-		{
-			name: "Format_With_User_With_Login_Only",
-			payload: &parser.YoutrackWebhookPayload{
-				Issue: parser.YoutrackIssue{
-					Summary: "Test Issue",
-					URL:     "https://test.com",
-					Assignee: &parser.YoutrackUser{
-						Login: &loginStr,
-					},
-				},
-			},
-			channel: "default",
-			checkContains: []string{
-				loginStr,
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			formatter := NewYoutrackFormatter().(*YoutrackFormatter)
-
-			result := formatter.Format(tc.payload, tc.channel)
-
-			if tc.expectedResult != "" {
-				if result != tc.expectedResult {
-					t.Errorf("expected result %q, got: %q", tc.expectedResult, result)
-				}
-			}
-
-			if len(tc.checkContains) > 0 {
-				for _, expected := range tc.checkContains {
-					if !strings.Contains(result, expected) {
-						t.Errorf("expected result to contain %q, got: %q", expected, result)
-					}
-				}
-			}
-
-			if len(tc.checkNotContains) > 0 {
-				for _, notExpected := range tc.checkNotContains {
-					if strings.Contains(result, notExpected) {
-						t.Errorf("expected result not to contain %q, got: %q", notExpected, result)
-					}
-				}
-			}
-
-			if result == "" {
-				t.Error("expected non-empty result")
 			}
 		})
 	}

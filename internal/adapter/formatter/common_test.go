@@ -317,6 +317,49 @@ func TestExtractChangeValue(t *testing.T) {
 			field:          State,
 			expectedResult: nullValueString,
 		},
+		// Edge cases
+		{
+			name:           "Extract_Change_Value_Whitespace_Only",
+			value:          []byte(`   `),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_State_With_Empty_Object",
+			value:          []byte(`{}`),
+			field:          State,
+			expectedResult: "",
+		},
+		{
+			name:           "Extract_Change_Value_Assignee_With_Empty_Object",
+			value:          []byte(`{}`),
+			field:          Assignee,
+			expectedResult: "",
+		},
+		{
+			name:           "Extract_Change_Value_Comment_With_Empty_Text",
+			value:          []byte(`{"text": "", "mentionedUsers": []}`),
+			field:          Comment,
+			expectedResult: "",
+		},
+		{
+			name:           "Extract_Change_Value_Comment_With_Null_Text",
+			value:          []byte(`{"text": null, "mentionedUsers": []}`),
+			field:          Comment,
+			expectedResult: "",
+		},
+		{
+			name:           "Extract_Change_Value_Unknown_Field_Object_Empty",
+			value:          []byte(`{}`),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
+		{
+			name:           "Extract_Change_Value_Unknown_Field_Object_No_Name_No_Value",
+			value:          []byte(`{"other": "field"}`),
+			field:          "Unknown",
+			expectedResult: nullValueString,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -490,81 +533,6 @@ func TestExtractCommentText(t *testing.T) {
 				for _, notExpected := range tc.checkNotContains {
 					if strings.Contains(result, notExpected) {
 						t.Errorf("expected result not to contain %q, got: %q", notExpected, result)
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestExtractChangeValue_EdgeCases(t *testing.T) {
-	type testCase struct {
-		name           string
-		value          json.RawMessage
-		field          string
-		expectedResult string
-		checkContains  []string
-	}
-
-	testCases := []testCase{
-		{
-			name:           "Extract_Change_Value_Whitespace_Only",
-			value:          []byte(`   `),
-			field:          "Unknown",
-			expectedResult: nullValueString,
-		},
-		{
-			name:           "Extract_Change_Value_State_With_Empty_Object",
-			value:          []byte(`{}`),
-			field:          State,
-			expectedResult: "",
-		},
-		{
-			name:           "Extract_Change_Value_Assignee_With_Empty_Object",
-			value:          []byte(`{}`),
-			field:          Assignee,
-			expectedResult: "",
-		},
-		{
-			name:           "Extract_Change_Value_Comment_With_Empty_Text",
-			value:          []byte(`{"text": "", "mentionedUsers": []}`),
-			field:          Comment,
-			expectedResult: "",
-		},
-		{
-			name:           "Extract_Change_Value_Comment_With_Null_Text",
-			value:          []byte(`{"text": null, "mentionedUsers": []}`),
-			field:          Comment,
-			expectedResult: "",
-		},
-		{
-			name:           "Extract_Change_Value_Unknown_Field_Object_Empty",
-			value:          []byte(`{}`),
-			field:          "Unknown",
-			expectedResult: nullValueString,
-		},
-		{
-			name:           "Extract_Change_Value_Unknown_Field_Object_No_Name_No_Value",
-			value:          []byte(`{"other": "field"}`),
-			field:          "Unknown",
-			expectedResult: nullValueString,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := extractChangeValue(tc.value, tc.field)
-
-			if tc.expectedResult != "" {
-				if result != tc.expectedResult {
-					t.Errorf("expected result %q, got: %q", tc.expectedResult, result)
-				}
-			}
-
-			if len(tc.checkContains) > 0 {
-				for _, expected := range tc.checkContains {
-					if !strings.Contains(result, expected) {
-						t.Errorf("expected result to contain %q, got: %q", expected, result)
 					}
 				}
 			}
