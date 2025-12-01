@@ -1,0 +1,21 @@
+services:
+  notifications:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: notifications:latest
+    container_name: notifications
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - CONFIG_PATH=/config/config.yml
+      - LOG_LEVEL=info
+    volumes:
+      - ../config/config.yml:/config/config.yml:ro
+    networks:
+      - notifications-network
+
+networks:
+  notifications-network:
+    driver: bridge
