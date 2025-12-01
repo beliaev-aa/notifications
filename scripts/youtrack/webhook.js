@@ -159,6 +159,7 @@ const buildPayload = (ctx, issue) => {
     // Формируем объект задачи
     const issueObj = {
         idReadable: issue.idReadable || '',
+        isDraft: !issue.isReported,
         summary: issue.summary || '',
         url: issue.url
     };

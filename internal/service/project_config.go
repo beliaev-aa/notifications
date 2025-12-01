@@ -136,3 +136,19 @@ func (s *ProjectConfigServiceImpl) GetVKTeamsChatID(projectName string) (string,
 
 	return projectConfig.VKTeams.ChatID, true
 }
+
+// GetSendDraftNotification получает настройку отправки уведомлений для черновиков, по-умолчанию true если не указана
+func (s *ProjectConfigServiceImpl) GetSendDraftNotification(projectName string) bool {
+	projectConfig, exists := s.GetProjectConfig(projectName)
+	if !exists {
+		// Если проект не найден, возвращаем true по умолчанию
+		return true
+	}
+
+	// Если настройка не указана (nil), возвращаем true по умолчанию
+	if projectConfig.SendDraftNotification == nil {
+		return true
+	}
+
+	return *projectConfig.SendDraftNotification
+}

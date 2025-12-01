@@ -867,3 +867,106 @@ func TestParser_GetVKTeamsChatID_CaseInsensitive(t *testing.T) {
 		})
 	}
 }
+
+func TestParser_GetSendDraftNotification(t *testing.T) {
+	type testCase struct {
+		name                  string
+		projectName           string
+		sendDraftNotification bool
+		expectedSendDraft     bool
+	}
+
+	testCases := []testCase{
+		{
+			name:                  "GetSendDraftNotification_Project_With_True",
+			projectName:           "TestProject",
+			sendDraftNotification: true,
+			expectedSendDraft:     true,
+		},
+		{
+			name:                  "GetSendDraftNotification_Project_With_False",
+			projectName:           "TestProject",
+			sendDraftNotification: false,
+			expectedSendDraft:     false,
+		},
+		{
+			name:                  "GetSendDraftNotification_Non_Existent_Project",
+			projectName:           "NonExistentProject",
+			sendDraftNotification: true,
+			expectedSendDraft:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+			normalizedName := strings.ToLower(tc.projectName)
+			mockProjectConfig.EXPECT().GetSendDraftNotification(normalizedName).Return(tc.sendDraftNotification)
+
+			p := NewParser(mockProjectConfig)
+
+			result := p.GetSendDraftNotification(tc.projectName)
+
+			if result != tc.expectedSendDraft {
+				t.Errorf("expected sendDraftNotification %v, got: %v", tc.expectedSendDraft, result)
+			}
+		})
+	}
+}
+
+func TestParser_GetSendDraftNotification_CaseInsensitive(t *testing.T) {
+	type testCase struct {
+		name                  string
+		projectName           string
+		projectNameCase       string
+		sendDraftNotification bool
+		expectedSendDraft     bool
+	}
+
+	testCases := []testCase{
+		{
+			name:                  "GetSendDraftNotification_Uppercase_Project_Name",
+			projectName:           "project1",
+			projectNameCase:       "PROJECT1",
+			sendDraftNotification: false,
+			expectedSendDraft:     false,
+		},
+		{
+			name:                  "GetSendDraftNotification_Mixed_Case_Project_Name",
+			projectName:           "project1",
+			projectNameCase:       "Project1",
+			sendDraftNotification: true,
+			expectedSendDraft:     true,
+		},
+		{
+			name:                  "GetSendDraftNotification_Lowercase_Project_Name",
+			projectName:           "PROJECT1",
+			projectNameCase:       "project1",
+			sendDraftNotification: false,
+			expectedSendDraft:     false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockProjectConfig := mocks.NewMockProjectConfigService(ctrl)
+
+			normalizedName := strings.ToLower(tc.projectNameCase)
+			mockProjectConfig.EXPECT().GetSendDraftNotification(normalizedName).Return(tc.sendDraftNotification)
+
+			p := NewParser(mockProjectConfig)
+
+			result := p.GetSendDraftNotification(tc.projectNameCase)
+
+			if result != tc.expectedSendDraft {
+				t.Errorf("expected sendDraftNotification %v, got: %v", tc.expectedSendDraft, result)
+			}
+		})
+	}
+}

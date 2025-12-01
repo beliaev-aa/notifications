@@ -48,6 +48,20 @@ func (mr *MockYoutrackParserMockRecorder) GetAllowedChannels(payload interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllowedChannels", reflect.TypeOf((*MockYoutrackParser)(nil).GetAllowedChannels), payload)
 }
 
+// GetSendDraftNotification mocks base method.
+func (m *MockYoutrackParser) GetSendDraftNotification(projectName string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSendDraftNotification", projectName)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// GetSendDraftNotification indicates an expected call of GetSendDraftNotification.
+func (mr *MockYoutrackParserMockRecorder) GetSendDraftNotification(projectName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSendDraftNotification", reflect.TypeOf((*MockYoutrackParser)(nil).GetSendDraftNotification), projectName)
+}
+
 // GetTelegramChatID mocks base method.
 func (m *MockYoutrackParser) GetTelegramChatID(projectName string) (string, bool) {
 	m.ctrl.T.Helper()

@@ -981,6 +981,128 @@ func TestProjectConfigService_CaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestProjectConfigService_GetSendDraftNotification(t *testing.T) {
+	type testCase struct {
+		name              string
+		cfg               *config.Config
+		projectName       string
+		expectedSendDraft bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "GetSendDraftNotification_Project_Exists_With_True",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels:       []string{"logger"},
+								SendDraftNotification: boolPtr(true),
+							},
+						},
+					},
+				},
+			},
+			projectName:       "project1",
+			expectedSendDraft: true,
+		},
+		{
+			name: "GetSendDraftNotification_Project_Exists_With_False",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels:       []string{"logger"},
+								SendDraftNotification: boolPtr(false),
+							},
+						},
+					},
+				},
+			},
+			projectName:       "project1",
+			expectedSendDraft: false,
+		},
+		{
+			name: "GetSendDraftNotification_Project_Exists_With_Nil_Default_True",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels:       []string{"logger"},
+								SendDraftNotification: nil,
+							},
+						},
+					},
+				},
+			},
+			projectName:       "project1",
+			expectedSendDraft: true,
+		},
+		{
+			name: "GetSendDraftNotification_Project_Not_Exists_Default_True",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels: []string{"logger"},
+							},
+						},
+					},
+				},
+			},
+			projectName:       "project2",
+			expectedSendDraft: true,
+		},
+		{
+			name: "GetSendDraftNotification_Projects_Nil_Default_True",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{},
+			},
+			projectName:       "project1",
+			expectedSendDraft: true,
+		},
+		{
+			name: "GetSendDraftNotification_Case_Insensitive",
+			cfg: &config.Config{
+				Notifications: config.NotificationsConfig{
+					Youtrack: config.YoutrackConfig{
+						Projects: map[string]config.ProjectConfig{
+							"project1": {
+								AllowedChannels:       []string{"logger"},
+								SendDraftNotification: boolPtr(false),
+							},
+						},
+					},
+				},
+			},
+			projectName:       "PROJECT1",
+			expectedSendDraft: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewProjectConfigService(tc.cfg, logger)
+
+			result := service.GetSendDraftNotification(tc.projectName)
+
+			if result != tc.expectedSendDraft {
+				t.Errorf("expected sendDraftNotification %v, got: %v", tc.expectedSendDraft, result)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func normalizeProjectNamesInConfig(cfg *config.Config) {
 	if cfg.Notifications.Youtrack.Projects == nil {
 		return

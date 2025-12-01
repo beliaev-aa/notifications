@@ -70,9 +70,12 @@ type YoutrackConfig struct {
 // ProjectConfig содержит конфигурацию для проекта
 type ProjectConfig struct {
 	// Доступные каналы для уведомлений в проекте
-	AllowedChannels []string               `yaml:"allowedChannels"`
-	Telegram        *ProjectTelegramConfig `yaml:"telegram,omitempty"` // Обязательно, если telegram в allowedChannels
-	VKTeams         *ProjectVKTeamsConfig  `yaml:"vkteams,omitempty"`  // Обязательно, если vkteams в allowedChannels
+	AllowedChannels []string `yaml:"allowedChannels"`
+	// SendDraftNotification определяет, отправлять ли уведомления для черновиков (IsDraft = true)
+	// По умолчанию true (если не указано)
+	SendDraftNotification *bool                  `yaml:"sendDraftNotification,omitempty"`
+	Telegram              *ProjectTelegramConfig `yaml:"telegram,omitempty"` // Обязательно, если telegram в allowedChannels
+	VKTeams               *ProjectVKTeamsConfig  `yaml:"vkteams,omitempty"`  // Обязательно, если vkteams в allowedChannels
 }
 
 // ProjectTelegramConfig настройки для Telegram

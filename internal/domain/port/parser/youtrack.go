@@ -38,6 +38,7 @@ type YoutrackChange struct {
 
 // YoutrackIssue представляет задачу YouTrack
 type YoutrackIssue struct {
+	IsDraft  bool                `json:"isDraft"`
 	Summary  string              `json:"summary"`
 	URL      string              `json:"url"`
 	State    *YoutrackFieldValue `json:"state"`
@@ -60,6 +61,9 @@ type YoutrackParser interface {
 	// GetVKTeamsChatID возвращает chat_id для VK Teams канала проекта
 	// Возвращает chat_id и true, если проект разрешен и имеет VK Teams конфигурацию, иначе пустую строку и false
 	GetVKTeamsChatID(projectName string) (string, bool)
+	// GetSendDraftNotification возвращает настройку отправки уведомлений для черновиков проекта
+	// Возвращает true по умолчанию, если настройка не указана
+	GetSendDraftNotification(projectName string) bool
 }
 
 // YoutrackFormatter определяет порт для форматирования YouTrack payload для различных каналов

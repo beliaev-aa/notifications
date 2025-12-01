@@ -76,6 +76,18 @@ func (w *WebhookService) ProcessWebhook(req *http.Request) error {
 		return nil // Игнорируем, но не возвращаем ошибку
 	}
 
+	// Проверяем, нужно ли отправлять уведомление для черновика
+	if payload.Issue.IsDraft {
+		sendDraftNotification := w.youtrackParser.GetSendDraftNotification(projectName)
+		if !sendDraftNotification {
+			w.logger.WithFields(logrus.Fields{
+				"project": projectName,
+				"isDraft": true,
+			}).Info("Draft notification is disabled for project, ignoring notification")
+			return nil // Игнорируем черновик, если отправка отключена
+		}
+	}
+
 	youtrackFormatter := w.youtrackParser.NewFormatter()
 
 	// Регистрируем специальное форматирование для Telegram канала

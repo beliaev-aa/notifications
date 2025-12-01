@@ -63,6 +63,20 @@ func (mr *MockProjectConfigServiceMockRecorder) GetProjectConfig(projectName int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectConfig", reflect.TypeOf((*MockProjectConfigService)(nil).GetProjectConfig), projectName)
 }
 
+// GetSendDraftNotification mocks base method.
+func (m *MockProjectConfigService) GetSendDraftNotification(projectName string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSendDraftNotification", projectName)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// GetSendDraftNotification indicates an expected call of GetSendDraftNotification.
+func (mr *MockProjectConfigServiceMockRecorder) GetSendDraftNotification(projectName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSendDraftNotification", reflect.TypeOf((*MockProjectConfigService)(nil).GetSendDraftNotification), projectName)
+}
+
 // GetTelegramChatID mocks base method.
 func (m *MockProjectConfigService) GetTelegramChatID(projectName string) (string, bool) {
 	m.ctrl.T.Helper()

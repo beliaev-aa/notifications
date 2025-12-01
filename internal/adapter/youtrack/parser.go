@@ -60,3 +60,8 @@ func (p *Parser) GetTelegramChatID(projectName string) (string, bool) {
 func (p *Parser) GetVKTeamsChatID(projectName string) (string, bool) {
 	return p.projectConfigService.GetVKTeamsChatID(strings.ToLower(projectName))
 }
+
+// GetSendDraftNotification возвращает настройку отправки уведомлений для черновиков проекта
+func (p *Parser) GetSendDraftNotification(projectName string) bool {
+	return p.projectConfigService.GetSendDraftNotification(strings.ToLower(projectName))
+}

@@ -470,6 +470,165 @@ func TestProcessWebhook(t *testing.T) {
 	}
 }
 
+func TestProcessWebhook_IsDraft(t *testing.T) {
+	type testCase struct {
+		name                  string
+		requestBody           string
+		isDraft               bool
+		sendDraftNotification bool
+		projectName           string
+		projectAllowed        bool
+		allowedChannels       []string
+		expectedError         bool
+		verifySendCalls       bool
+		checkLogging          bool
+	}
+
+	validJSON := `{"project":{"name":"TestProject"},"issue":{"summary":"Test Issue","url":"https://test.com","isDraft":true}}`
+	validJSONNotDraft := `{"project":{"name":"TestProject"},"issue":{"summary":"Test Issue","url":"https://test.com","isDraft":false}}`
+	fieldName := "TestProject"
+
+	testCases := []testCase{
+		{
+			name:                  "IsDraft_True_SendDraftNotification_False_Ignores_Notification",
+			requestBody:           validJSON,
+			isDraft:               true,
+			sendDraftNotification: false,
+			projectName:           "TestProject",
+			projectAllowed:        true,
+			allowedChannels:       []string{port.ChannelLogger},
+			expectedError:         false,
+			verifySendCalls:       false,
+			checkLogging:          true,
+		},
+		{
+			name:                  "IsDraft_True_SendDraftNotification_True_Sends_Notification",
+			requestBody:           validJSON,
+			isDraft:               true,
+			sendDraftNotification: true,
+			projectName:           "TestProject",
+			projectAllowed:        true,
+			allowedChannels:       []string{port.ChannelLogger},
+			expectedError:         false,
+			verifySendCalls:       true,
+			checkLogging:          true,
+		},
+		{
+			name:                  "IsDraft_False_Sends_Notification_Regardless_Of_Setting",
+			requestBody:           validJSONNotDraft,
+			isDraft:               false,
+			sendDraftNotification: false,
+			projectName:           "TestProject",
+			projectAllowed:        true,
+			allowedChannels:       []string{port.ChannelLogger},
+			expectedError:         false,
+			verifySendCalls:       true,
+			checkLogging:          true,
+		},
+		{
+			name:                  "IsDraft_False_SendDraftNotification_True_Sends_Notification",
+			requestBody:           validJSONNotDraft,
+			isDraft:               false,
+			sendDraftNotification: true,
+			projectName:           "TestProject",
+			projectAllowed:        true,
+			allowedChannels:       []string{port.ChannelLogger},
+			expectedError:         false,
+			verifySendCalls:       true,
+			checkLogging:          true,
+		},
+		{
+			name:                  "IsDraft_True_SendDraftNotification_Default_True_Sends_Notification",
+			requestBody:           validJSON,
+			isDraft:               true,
+			sendDraftNotification: true,
+			projectName:           "TestProject",
+			projectAllowed:        true,
+			allowedChannels:       []string{port.ChannelLogger},
+			expectedError:         false,
+			verifySendCalls:       true,
+			checkLogging:          true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			var buf bytes.Buffer
+			logger := logrus.New()
+			logger.SetOutput(&buf)
+			logger.SetFormatter(&logrus.JSONFormatter{})
+			logger.SetLevel(logrus.DebugLevel)
+
+			mockSender := mocks.NewMockNotificationSender(ctrl)
+			mockParser := mocks.NewMockYoutrackParser(ctrl)
+			mockFormatter := mocks.NewMockYoutrackFormatter(ctrl)
+
+			requestBody := io.NopCloser(strings.NewReader(tc.requestBody))
+			req, err := http.NewRequest("POST", "/webhook", requestBody)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+
+			payload := &parser.YoutrackWebhookPayload{
+				Project: &parser.YoutrackFieldValue{Name: &fieldName},
+				Issue: parser.YoutrackIssue{
+					Summary: "Test Issue",
+					URL:     "https://test.com",
+					IsDraft: tc.isDraft,
+				},
+			}
+
+			mockParser.EXPECT().ParseJSON(gomock.Any()).Return(payload, nil)
+			mockParser.EXPECT().GetAllowedChannels(payload).Return(tc.allowedChannels)
+
+			if tc.isDraft {
+				mockParser.EXPECT().GetSendDraftNotification(tc.projectName).Return(tc.sendDraftNotification)
+			}
+
+			if tc.verifySendCalls && len(tc.allowedChannels) > 0 {
+				mockParser.EXPECT().NewFormatter().Return(mockFormatter)
+				mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelTelegram, gomock.Any())
+				mockFormatter.EXPECT().RegisterChannelFormatter(port.ChannelVKTeams, gomock.Any())
+
+				for _, channel := range tc.allowedChannels {
+					mockFormatter.EXPECT().Format(payload, channel).Return("formatted for " + channel)
+					mockSender.EXPECT().Send(channel, "", gomock.Any()).Return(nil)
+				}
+			}
+
+			service := &WebhookService{
+				notificationSender: mockSender,
+				youtrackParser:     mockParser,
+				logger:             logger,
+			}
+
+			err = service.ProcessWebhook(req)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Error("expected error, got: nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+
+			if tc.checkLogging {
+				logOutput := buf.String()
+				if tc.isDraft && !tc.sendDraftNotification {
+					if !strings.Contains(logOutput, "Draft notification is disabled") {
+						t.Error("expected log message about draft notification being disabled")
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestProcessWebhook_Integration(t *testing.T) {
 	type testCase struct {
 		name             string

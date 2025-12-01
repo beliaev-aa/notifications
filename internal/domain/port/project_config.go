@@ -14,4 +14,6 @@ type ProjectConfigService interface {
 	GetTelegramChatID(projectName string) (string, bool)
 	// GetVKTeamsChatID получение chat_id для VK Teams канала проекта
 	GetVKTeamsChatID(projectName string) (string, bool)
+	// GetSendDraftNotification получение настройки отправки уведомлений для черновиков
+	GetSendDraftNotification(projectName string) bool
 }
